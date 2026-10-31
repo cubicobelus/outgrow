@@ -6,7 +6,9 @@ no dependencies.
 
 ## Play
 
-Download the repo and open `index.html` in a browser.
+**[Play in your browser](https://cubicobelus.github.io/territory-game/)**: nothing to download or install.
+
+To run it offline, download the repo and open `index.html` in a browser.
 
 ## How it works
 
