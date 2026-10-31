@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Territory</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<canvas id="map"></canvas>
+
+<div id="hud" class="panel">
+  <div class="row"><span class="label">Troops</span><span id="troops"></span></div>
+  <div class="bar"><div id="fill"></div><div class="mark"></div></div>
+  <div class="row"><span class="label">Growth</span><span id="growth"></span></div>
+  <div class="row"><span class="label">Land</span><span id="land"></span></div>
+  <div id="attacks"></div>
+</div>
+
+<div id="side" class="panel">
+  <table id="board"></table>
+  <div id="speeds" class="buttons"><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button></div>
+  <button id="newmap">New map</button>
+</div>
+
+<div id="bottom" class="panel">
+  <span class="label">Send</span>
+  <div id="shares" class="buttons"><button data-share="0.2">20%</button><button data-share="0.4">40%</button><button data-share="0.6">60%</button><button data-share="0.8">80%</button></div>
+  <span id="sending"></span>
+  <span id="hover"></span>
+</div>
+
+<div id="msg" hidden></div>
+<div id="paused" hidden>Paused</div>
+<div id="overlay" hidden>
+  <div class="panel">
+    <h2 id="result"></h2>
+    <button id="again">New game</button>
+    <button id="watch">Keep watching</button>
+  </div>
+</div>
+
+<script src="js/economy.js"></script>
+<script src="js/map.js"></script>
+<script src="js/game.js"></script>
+<script src="js/render.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

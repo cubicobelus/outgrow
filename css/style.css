@@ -1,0 +1,41 @@
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #1d3350; color: #eef; font: 14px system-ui, sans-serif; }
+#map { position: fixed; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+
+.panel { position: fixed; background: rgba(15, 22, 34, 0.82); border-radius: 8px; padding: 10px 12px; }
+.label { color: #9ab; margin-right: 8px; }
+.row { display: flex; justify-content: space-between; gap: 16px; margin: 2px 0; }
+button { background: #2b3a52; color: #eef; border: 1px solid #45597a; border-radius: 5px; padding: 4px 10px; font: inherit; cursor: pointer; }
+button:hover { background: #3a4d6b; }
+button.on { background: #d9a52e; border-color: #d9a52e; color: #111; }
+.buttons { display: flex; gap: 4px; }
+
+#hud { top: 10px; left: 10px; min-width: 220px; }
+.bar { position: relative; height: 6px; background: #2b3a52; border-radius: 3px; margin: 4px 0 6px; }
+#fill { height: 100%; background: #d9a52e; border-radius: 3px; }
+/* Growth peaks near 40% of cap. */
+.bar .mark { position: absolute; left: 40%; top: -2px; bottom: -2px; width: 2px; background: #eef; opacity: 0.5; }
+#attacks { margin-top: 6px; color: #fc9; }
+
+#side { top: 10px; right: 10px; display: flex; flex-direction: column; gap: 8px; }
+#board { border-collapse: collapse; }
+#board td { padding: 1px 6px; white-space: nowrap; }
+#board td:not(:first-child) { text-align: right; }
+#board tr.me { color: #d9a52e; font-weight: 600; }
+.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+
+#bottom { bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+#sending { min-width: 48px; }
+#hover { color: #9ab; min-width: 150px; }
+
+#msg, #paused { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(15, 22, 34, 0.9); padding: 8px 14px; border-radius: 6px; pointer-events: none; }
+#paused { top: 54px; }
+#overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.4); }
+#overlay .panel { position: static; text-align: center; padding: 20px 28px; }
+#overlay h2 { margin: 0 0 14px; }
+[hidden] { display: none !important; }
+
+@media (max-width: 700px) {
+  #side { display: none; }
+  #bottom { flex-wrap: wrap; justify-content: center; width: calc(100% - 20px); }
+}
