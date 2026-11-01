@@ -31,8 +31,9 @@
 //   snipe:       hit any neighbour whose land costs at most this many times open land
 //   lean:        how far each bot's trigger, share and safety may stray from these (0.3 = up to 30% either way)
 //   delay:       seconds before the first move [min, max]
-const EXPERT = { think: 0.2, openTrigger: 0.42, openShare: 0.55, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6] };
-const HARD =   { think: 0.55, openTrigger: 0.45, openShare: 0.4, openGuard: 0.3, safety: 0.8, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3] };
+//   chip:        also consider small 15% attacks when sitting near the cap
+const EXPERT = { think: 0.2, openTrigger: 0.42, openShare: 0.55, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true };
+const HARD =   { think: 0.55, openTrigger: 0.45, openShare: 0.4, openGuard: 0.3, safety: 0.8, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false };
 
 const BOT_TYPES = {
   easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.2, 3],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
@@ -93,15 +94,15 @@ function firstMove(game, p, delay) {
 }
 
 // With no reachable land to take, cross the water: open land first, else (when `war` is set)
-// the weakest player anywhere. Tried at most every 3 seconds since the search covers the sea.
+// the weakest player that can actually be reached by sea. Tried at most every 3 seconds since
+// the search covers the sea.
 function tryBoat(game, p, share, war) {
   if (game.time < (p.nextBoat || 0)) return false;
   p.nextBoat = game.time + 3;
-  if (game.neutralLeft() > 0) return game.sendBoat(p, NEUTRAL, null, p.troops * share);
+  if (game.neutralLeft() > 0 && game.sendBoat(p, NEUTRAL, null, p.troops * share)) return true;
   if (!war) return false;
-  let weak = null;
-  for (const q of game.players) if (q.alive && q.spawned && q !== p && (!weak || q.troops < weak.troops)) weak = q;
-  return !!weak && game.sendBoat(p, weak.id, null, p.troops * war);
+  const others = game.players.filter(q => q.alive && q.spawned && q !== p).sort((a, b) => a.troops - b.troops);
+  return others.some(q => game.sendBoat(p, q.id, null, p.troops * war));
 }
 
 // What happens if p sends `share` of its troops at q: tiles gained, whether q is wiped out,
@@ -109,7 +110,8 @@ function tryBoat(game, p, share, war) {
 // left. A neighbour can only take land in proportion to its own troops over ours, so whole
 // armies are what matter, not troops per tile.
 function plan(game, p, q, share, near) {
-  const send = p.troops * share, cost = estCost(game, p, q);
+  // Never more than it takes to wipe q out (with a margin), so finishing off a small player is cheap.
+  const cost = estCost(game, p, q), send = Math.min(p.troops * share, q.tiles * cost * 1.2);
   const gain = Math.min(q.tiles, send / cost);
   let threat = Math.max(0, q.troops - gain * density(q));
   for (const r of near) if (r !== q) threat = Math.max(threat, r.troops);
@@ -181,18 +183,31 @@ function patientThink(game, p, E) {
     return;
   }
   if (game.attacks.some(a => a.attacker === p.id)) return;
-  if (p.troops >= E.openTrigger * L.trigger * cap && tryBoat(game, p, E.openShare * L.share, near.length ? 0 : 0.5)) return;
-  if (!near.length) return;
+  if (p.troops >= E.openTrigger * L.trigger * cap && game.neutralLeft() > 0 && tryBoat(game, p, E.openShare * L.share, 0)) return;
 
-  // Only attack when it stays safe; among safe options take the most land, wiping someone out counts double.
-  let best = null, bestScore = 0;
-  for (const q of near) {
-    for (const share of [0.3, 0.5, 0.7]) {
-      const pl = plan(game, p, q, share, near);
-      if (pl.safe < E.safety * L.safety || pl.gain < E.minGain) continue;
-      const score = pl.gain * (pl.wipes ? 2 : 1);
-      if (score > bestScore) { best = [q, Math.min(pl.send, q.tiles * pl.cost * 1.2)]; bestScore = score; }
+  // Only attack when it stays safe; among safe options take the most land, wiping someone out
+  // counts double, and a player that can be wiped out is always worth it however small.
+  const choose = targets => {
+    const out = [];
+    for (const q of targets) {
+      let best = null;
+      // A chip (15%, Expert only): an army at its cap regrows a slice at full speed, so a small
+      // safe attack is nearly free even when a big one would leave the bot exposed.
+      for (const share of E.chip ? [0.15, 0.3, 0.5, 0.7] : [0.3, 0.5, 0.7]) {
+        const pl = plan(game, p, q, share, near.includes(q) ? near : [...near, q]);
+        if (pl.safe < E.safety * L.safety || (pl.gain < E.minGain && !pl.wipes)) continue;
+        const score = pl.gain * (pl.wipes ? 2 : 1);
+        if (!best || score > best.score) best = { q, score, send: pl.send };
+      }
+      if (best) out.push(best);
     }
-  }
-  if (best) game.launchAttack(p, best[0].id, best[1]);
+    return out.sort((a, b) => b.score - a.score);
+  };
+  const land = choose(near);
+  if (land.length) { game.launchAttack(p, land[0].q.id, land[0].send); return; }
+  // Nothing worth taking by land: weigh every other player across the sea the same way.
+  if (game.time < (p.nextSea || 0)) return;
+  p.nextSea = game.time + 3;
+  const sea = choose(game.players.filter(q => q.alive && q.spawned && q !== p && !near.includes(q)));
+  sea.some(o => game.sendBoat(p, o.q.id, null, o.send));
 }
