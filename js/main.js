@@ -154,8 +154,14 @@ canvas.addEventListener('pointercancel', pointerEnd);
 canvas.addEventListener('wheel', e => {
   if (mode !== 'game') return;
   e.preventDefault();
-  renderer.zoomAt(e.clientX, e.clientY, Math.pow(1.0015, -e.deltaY));
+  // Wheel notches, trackpad swipes and pinch gestures (which arrive as ctrl + wheel) all ease in.
+  const px = Math.max(-300, Math.min(300, e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY));
+  renderer.zoomAt(e.clientX, e.clientY, Math.exp(-px * (e.ctrlKey ? 0.012 : 0.0022)), true);
 }, { passive: false });
+
+el('zoomIn').addEventListener('click', () => renderer.zoomCentre(1.5));
+el('zoomOut').addEventListener('click', () => renderer.zoomCentre(1 / 1.5));
+el('zoomFit').addEventListener('click', () => renderer.fitAll());
 
 canvas.addEventListener('mousemove', e => {
   if (mode !== 'game') return;
@@ -173,6 +179,12 @@ window.addEventListener('keydown', e => {
     setPaused(!paused);
   } else if (paused && !el('pause').hidden) {
     return;
+  } else if (e.key === '+' || e.key === '=') renderer.zoomCentre(1.4);
+  else if (e.key === '-' || e.key === '_') renderer.zoomCentre(1 / 1.4);
+  else if (e.key === '0') renderer.fitAll();
+  else if (e.key.startsWith('Arrow')) {
+    renderer.panBy(e.key === 'ArrowLeft' ? 80 : e.key === 'ArrowRight' ? -80 : 0, e.key === 'ArrowUp' ? 80 : e.key === 'ArrowDown' ? -80 : 0);
+    e.preventDefault();
   } else if (e.key >= '1' && e.key <= '5') setShare(SHARES[+e.key - 1]);
   else if (e.key === ' ' && !ended) { paused = !paused; e.preventDefault(); }
 });
@@ -217,10 +229,10 @@ function updateHud() {
   el('sending').textContent = fmt(me.troops * share);
   const name = id => (id === NEUTRAL ? 'Open land' : game.players[id].name);
   el('attacks').innerHTML =
-    game.attacks.filter(a => a.target === me.id).map(a => `<div class="in">${name(a.attacker)} attacking: ${fmt(a.troops)}</div>`).join('') +
+    game.attacks.filter(a => a.target === me.id).map(a => `<div class="in">Defending vs ${name(a.attacker)}: ${fmt(a.troops)}</div>`).join('') +
     game.boats.filter(b => b.target === me.id).map(b => `<div class="in">${name(b.owner)} boat incoming: ${fmt(b.troops)}</div>`).join('') +
-    game.attacks.filter(a => a.attacker === me.id).map(a => `<div>&rarr; ${name(a.target)}: ${fmt(a.troops)}</div>`).join('') +
-    game.boats.filter(b => b.owner === me.id).map(b => `<div>Boat &rarr; ${name(b.target)}: ${fmt(b.troops)}</div>`).join('');
+    game.attacks.filter(a => a.attacker === me.id).map(a => `<div class="out">Attacking ${name(a.target)}: ${fmt(a.troops)}</div>`).join('') +
+    game.boats.filter(b => b.owner === me.id).map(b => `<div class="out">Boat to ${name(b.target)}: ${fmt(b.troops)}</div>`).join('');
   const ranked = game.players.filter(p => p.alive && p.spawned).sort((a, b) => b.tiles - a.tiles).slice(0, 8);
   el('board').innerHTML = ranked.map(p =>
     `<tr${p === me ? ' class="me"' : ''}><td><span class="dot" style="background:rgb(${p.color})"></span>${p.name}</td>` +
@@ -288,7 +300,7 @@ function frame(now) {
   if (inGame && game.phase === 'start') {
     el('start').textContent = `${game.human.spawned ? 'Click to move your start' : 'Click open land to place your start'}: ${Math.ceil(game.startLeft)}s`;
   }
-  renderer.draw();
+  renderer.draw(dt);
   if (inGame) updateHud();
   requestAnimationFrame(frame);
 }

@@ -1,6 +1,6 @@
 :root {
   --bg: #1d3350;
-  --panel: rgba(14, 21, 33, 0.86);
+  --panel: rgba(14, 21, 33, 0.66);
   --card: rgba(16, 24, 38, 0.94);
   --line: #3a4d6b;
   --text: #eef2fa;
@@ -32,9 +32,18 @@ button.on { background: var(--gold); border-color: var(--gold); color: #141414; 
 .bar .mark { position: absolute; left: 40%; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.6; }
 #attacks { margin-top: 6px; color: #ffcf8a; font-size: 13px; }
 #attacks .in { color: #ff7b6b; font-weight: 600; }
+#attacks .out { color: #ffd54a; }
 #hud.hit { animation: hit 0.9s ease-out; }
 @keyframes hit { 0%, 30% { box-shadow: 0 0 0 3px #ff4632, 0 0 24px #ff4632; } 100% { box-shadow: none; } }
 #map { touch-action: none; }
+
+/* Panels never block the map: clicks, drags and the wheel pass through them to the map below.
+   Only their buttons take input. */
+#hud, #side, #bottom, #zoomctl { pointer-events: none; }
+#side button, #bottom button, #zoomctl button { pointer-events: auto; }
+#zoomctl { bottom: 10px; left: 10px; display: flex; gap: 4px; padding: 6px; }
+#zoomctl button { min-width: 34px; font-weight: 700; }
+body.in-menu #zoomctl { display: none; }
 
 #side { top: 10px; right: 10px; display: flex; flex-direction: column; gap: 8px; }
 .side-row { display: flex; justify-content: space-between; gap: 8px; }
@@ -83,6 +92,7 @@ button.ghost:hover { background: var(--btn); }
 
 @media (max-width: 700px) {
   #side { top: auto; bottom: 64px; right: 10px; }
+  #zoomctl { bottom: 64px; }
   #board { display: none; }
   #bottom { justify-content: center; width: calc(100% - 20px); gap: 6px; padding: 8px; }
   #bottom .label { display: none; }

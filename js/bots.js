@@ -105,14 +105,24 @@ function tryBoat(game, p, share, war) {
   return others.some(q => game.sendBoat(p, q.id, null, p.troops * war));
 }
 
+// Troops it takes to wipe q out. A small player is priced tile by tile (a single mountain tile
+// held by a big army costs far more than the average estimate); a big one by the estimate.
+function wipeCost(game, p, q) {
+  const est = estCost(game, p, q) * q.tiles;
+  if (q.tiles > 150 || !q.border.size) return est;
+  let sum = 0;
+  for (const i of q.border) sum += game.tileCost(i, q.id, p.id);
+  return sum * q.tiles / q.border.size;
+}
+
 // What happens if p sends `share` of its troops at q: tiles gained, whether q is wiped out,
 // and how safe p is afterwards: its remaining troops over the biggest army any neighbour has
 // left. A neighbour can only take land in proportion to its own troops over ours, so whole
 // armies are what matter, not troops per tile.
 function plan(game, p, q, share, near) {
   // Never more than it takes to wipe q out (with a margin), so finishing off a small player is cheap.
-  const cost = estCost(game, p, q), send = Math.min(p.troops * share, q.tiles * cost * 1.2);
-  const gain = Math.min(q.tiles, send / cost);
+  const cost = estCost(game, p, q), need = wipeCost(game, p, q) * 1.2, send = Math.min(p.troops * share, need);
+  const gain = send >= need ? q.tiles : Math.min(q.tiles, send / cost);
   let threat = Math.max(0, q.troops - gain * density(q));
   for (const r of near) if (r !== q) threat = Math.max(threat, r.troops);
   return { send, gain, cost, wipes: gain >= q.tiles, safe: threat > 0 ? (p.troops - send) / threat : Infinity };
@@ -167,13 +177,15 @@ function patientThink(game, p, E) {
   const near = neighbourIds(game, p);
   const openCost = ECON.tileCost * AVG_TERRAIN;
   // Troops we keep so that neighbours do not find us cheap.
-  const guard = near.length ? E.openGuard * Math.max(...near.map(density)) * p.tiles : 0;
+  // A tiny enemy with a big army has a huge density but cannot take much, so the guard never
+  // exceeds one and a half times the strongest neighbouring army.
+  const guard = near.length ? Math.min(E.openGuard * Math.max(...near.map(density)) * p.tiles, 1.5 * Math.max(...near.map(q => q.troops))) : 0;
 
   // Snipe: a neighbour that just emptied itself is nearly as cheap as open land.
   for (const q of near) {
     const cost = estCost(game, p, q);
     if (busy(q.id) || cost > E.snipe * openCost) continue;
-    const send = Math.min(p.troops - guard, q.tiles * cost * 1.2);
+    const send = Math.min(p.troops - guard, wipeCost(game, p, q) * 1.2);
     if (send > cost * 10) game.launchAttack(p, q.id, send);
   }
 
@@ -190,6 +202,7 @@ function patientThink(game, p, E) {
   const choose = targets => {
     const out = [];
     for (const q of targets) {
+      if ((p.cool && p.cool[q.id]) > game.time) continue;
       let best = null;
       // A chip (15%, Expert only): an army at its cap regrows a slice at full speed, so a small
       // safe attack is nearly free even when a big one would leave the bot exposed.
@@ -204,7 +217,16 @@ function patientThink(game, p, E) {
     return out.sort((a, b) => b.score - a.score);
   };
   const land = choose(near);
-  if (land.length) { game.launchAttack(p, land[0].q.id, land[0].send); return; }
+  if (land.length) {
+    const q = land[0].q;
+    // An attack that ends at once (too few troops for the tile in front) must not be repeated
+    // forever: leave that player alone for a while so the sea options below get their turn.
+    p.cool = p.cool || {}; p.tried = p.tried || {};
+    if (game.time - (p.tried[q.id] || -9) < 1.5) p.cool[q.id] = game.time + 10;
+    p.tried[q.id] = game.time;
+    game.launchAttack(p, q.id, land[0].send);
+    return;
+  }
   // Nothing worth taking by land: weigh every other player across the sea the same way.
   if (game.time < (p.nextSea || 0)) return;
   p.nextSea = game.time + 3;

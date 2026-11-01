@@ -13,6 +13,8 @@ class Renderer {
     for (let i = 0; i < game.w * game.h; i++) this.paintTile(i);
     this.view = { x: 0, y: 0, scale: 1 };
     this.cam = { zoom: 1, cx: game.w / 2, cy: game.h / 2 }; // zoom 1 = whole map fits
+    this.goal = null;               // zoom the wheel is easing towards: { zoom, sx, sy }
+    this.arrows = new WeakMap();    // attack -> its front arrows, refreshed a few times a second
   }
 
   paintTile(i) {
@@ -35,27 +37,56 @@ class Renderer {
     this.updateView();
   }
 
+  // Zoom 1 fits the whole map. A little further out leaves room around it; the closest view puts
+  // one tile at about 64 CSS pixels.
+  clampZoom(z) { return Math.max(0.7, Math.min(64 * this.dpr / this.fit, z)); }
+
   updateView() {
     const c = this.cam, g = this.game;
-    c.zoom = Math.max(1, Math.min(10, c.zoom));
+    c.zoom = this.clampZoom(c.zoom);
     const scale = this.fit * c.zoom;
-    // Keep the map on screen: at full zoom out it is centred, zoomed in it cannot be dragged away.
-    const halfW = this.canvas.width / 2 / scale, halfH = this.canvas.height / 2 / scale;
-    c.cx = g.w / 2 <= halfW ? g.w / 2 : Math.max(halfW, Math.min(g.w - halfW, c.cx));
-    c.cy = g.h / 2 <= halfH ? g.h / 2 : Math.max(halfH, Math.min(g.h - halfH, c.cy));
+    // The view's centre may go anywhere on the map, so any tile can be dragged out from under the panels.
+    c.cx = Math.max(0, Math.min(g.w, c.cx));
+    c.cy = Math.max(0, Math.min(g.h, c.cy));
     this.view = { scale, x: this.canvas.width / 2 - c.cx * scale, y: this.canvas.height / 2 - c.cy * scale };
   }
 
-  // Zooms by `factor`, keeping the map point under the cursor in place.
-  zoomAt(clientX, clientY, factor) {
-    const r = this.canvas.getBoundingClientRect();
-    const sx = (clientX - r.left) * this.dpr, sy = (clientY - r.top) * this.dpr;
+  // Sets the zoom, keeping the map point under screen position (sx, sy) in canvas pixels in place.
+  applyZoom(sx, sy, zoom) {
     const tx = (sx - this.view.x) / this.view.scale, ty = (sy - this.view.y) / this.view.scale;
-    this.cam.zoom *= factor;
+    this.cam.zoom = zoom;
     this.updateView();
     this.cam.cx += tx - (sx - this.view.x) / this.view.scale;
     this.cam.cy += ty - (sy - this.view.y) / this.view.scale;
     this.updateView();
+  }
+
+  // Zooms by `factor` about the cursor. A wheel or button eases there (`smooth`); a pinch follows the fingers.
+  zoomAt(clientX, clientY, factor, smooth) {
+    const r = this.canvas.getBoundingClientRect();
+    const sx = (clientX - r.left) * this.dpr, sy = (clientY - r.top) * this.dpr;
+    if (!smooth) { this.goal = null; this.applyZoom(sx, sy, this.clampZoom(this.cam.zoom * factor)); return; }
+    this.goal = { zoom: this.clampZoom((this.goal ? this.goal.zoom : this.cam.zoom) * factor), sx, sy };
+  }
+
+  zoomCentre(factor) {
+    const r = this.canvas.getBoundingClientRect();
+    this.zoomAt(r.left + r.width / 2, r.top + r.height / 2, factor, true);
+  }
+
+  // Whole map back in view.
+  fitAll() {
+    this.goal = null;
+    this.cam.zoom = 1; this.cam.cx = this.game.w / 2; this.cam.cy = this.game.h / 2;
+    this.updateView();
+  }
+
+  stepZoom(dt) {
+    const gl = this.goal;
+    if (!gl) return;
+    const z = this.cam.zoom, k = 1 - Math.exp(-dt * 14);
+    if (Math.abs(gl.zoom - z) < z * 0.004) { this.applyZoom(gl.sx, gl.sy, gl.zoom); this.goal = null; return; }
+    this.applyZoom(gl.sx, gl.sy, z + (gl.zoom - z) * k);
   }
 
   panBy(dx, dy) {
@@ -73,7 +104,8 @@ class Renderer {
     return y * this.game.w + x;
   }
 
-  draw() {
+  draw(dt = 0.016) {
+    this.stepZoom(dt);
     const g = this.game, ctx = this.ctx, v = this.view;
     if (g.dirty.size) {
       for (const i of g.dirty) this.paintTile(i);
@@ -166,11 +198,11 @@ class Renderer {
   // Sparks where an attack is taking a player's tiles: a bright flash that fades out.
   drawClashes() {
     const g = this.game, ctx = this.ctx, v = this.view;
-    const r = Math.max(2 * this.dpr, v.scale * 0.9);
+    const r = Math.max(2 * this.dpr, v.scale * 0.5);
     for (const c of g.clashes) {
       const t = (c.until - g.time) / 0.6;
       const x = v.x + (c.i % g.w + 0.5) * v.scale, y = v.y + (Math.floor(c.i / g.w) + 0.5) * v.scale;
-      ctx.fillStyle = `rgba(255, ${170 + 85 * t}, ${90 + 120 * t}, ${0.85 * t})`;
+      ctx.fillStyle = `rgba(255, ${170 + 85 * t}, ${90 + 120 * t}, ${0.7 * t})`;
       ctx.beginPath();
       ctx.arc(x, y, r * (1.6 - 0.6 * t), 0, Math.PI * 2);
       ctx.fill();
@@ -181,6 +213,7 @@ class Renderer {
   drawAttacks() {
     const g = this.game, ctx = this.ctx, v = this.view, k = this.dpr;
     const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 120);
+    for (const a of g.attacks) this.drawArrows(a);
     for (const a of g.attacks) {
       if (a.fx === undefined) continue;
       const x = v.x + (a.fx + 0.5) * v.scale, y = v.y + (a.fy + 0.5) * v.scale;
@@ -191,7 +224,53 @@ class Renderer {
         ctx.arc(x, y, (14 + 6 * pulse) * k, 0, Math.PI * 2);
         ctx.stroke();
       }
-      this.pill(x, y, fmt(a.troops), g.players[a.attacker].color, a.target === g.human.id);
+      this.pill(x, y, fmt(a.troops), g.players[a.attacker].color, a.target === g.human.id, a.attacker === g.human.id);
+    }
+  }
+
+  // Where an attack meets its target: for sampled front tiles, the tile and the direction the front
+  // pushes (from the attacker's land into it). Refreshed four times a second.
+  arrowSpots(a) {
+    const g = this.game, now = performance.now(), c = this.arrows.get(a);
+    if (c && now - c.t < 250) return c.list;
+    const counts = a.edge ? g.frontOf(a) : g.front(a.attacker, a.target);
+    const keys = [...counts.keys()], stride = Math.max(1, Math.ceil(keys.length / 80)), list = [];
+    for (let n = 0; n < keys.length; n += stride) {
+      const j = keys[n], jx = j % g.w, jy = (j - jx) / g.w;
+      let dx = 0, dy = 0;
+      for (const m of g.neighbors(j)) if (g.owner[m] === a.attacker) { dx += jx - (m % g.w); dy += jy - Math.floor(m / g.w); }
+      const len = Math.hypot(dx, dy);
+      if (len) list.push([jx, jy, dx / len, dy / len]);
+    }
+    this.arrows.set(a, { t: now, list });
+    return list;
+  }
+
+  // Arrowheads flowing across every front against a player, from the attacker's land into the
+  // defender's. Your attacks are gold, attacks on you red, the rest in the attacker's colour.
+  drawArrows(a) {
+    const g = this.game, ctx = this.ctx, v = this.view, k = this.dpr;
+    if (a.target === NEUTRAL) return;
+    const me = g.human.id;
+    const col = a.attacker === me ? '255, 213, 74' : a.target === me ? '255, 70, 50'
+      : g.players[a.attacker].color.map(x => Math.round(x * 0.6 + 255 * 0.4)).join(', ');
+    const s = Math.max(3.5 * k, 0.75 * v.scale), now = performance.now();
+    ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    for (const [jx, jy, dx, dy] of this.arrowSpots(a)) {
+      const ph = (now / 1000 + ((jx * 7 + jy * 13) % 10) / 10) % 1;
+      const along = (ph - 0.5) * 1.8;
+      const x = v.x + (jx + 0.5 + dx * along) * v.scale, y = v.y + (jy + 0.5 + dy * along) * v.scale;
+      const alpha = Math.sin(Math.PI * ph);
+      ctx.beginPath();
+      ctx.moveTo(x - dx * s * 0.5 - dy * s * 0.6, y - dy * s * 0.5 + dx * s * 0.6);
+      ctx.lineTo(x + dx * s * 0.5, y + dy * s * 0.5);
+      ctx.lineTo(x - dx * s * 0.5 + dy * s * 0.6, y - dy * s * 0.5 - dx * s * 0.6);
+      ctx.strokeStyle = `rgba(0, 0, 0, ${0.7 * alpha})`;
+      ctx.lineWidth = Math.max(3 * k, 0.32 * v.scale);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(${col}, ${alpha})`;
+      ctx.lineWidth = Math.max(1.6 * k, 0.17 * v.scale);
+      ctx.stroke();
     }
   }
 
@@ -249,12 +328,12 @@ class Renderer {
     ctx.restore();
   }
 
-  pill(x, y, text, color, danger) {
+  pill(x, y, text, color, danger, mine) {
     const ctx = this.ctx, k = this.dpr;
     ctx.font = `700 ${11 * k}px system-ui, sans-serif`;
     const w = ctx.measureText(text).width + 10 * k, h = 16 * k;
     ctx.fillStyle = 'rgba(10, 14, 22, 0.85)';
-    ctx.strokeStyle = danger ? '#ff4632' : `rgb(${color})`;
+    ctx.strokeStyle = danger ? '#ff4632' : mine ? '#ffd54a' : `rgb(${color})`;
     ctx.lineWidth = 2 * k;
     ctx.beginPath();
     ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
