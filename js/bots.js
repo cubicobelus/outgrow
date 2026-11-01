@@ -32,12 +32,12 @@
 //   lean:        how far each bot's trigger, share and safety may stray from these (0.3 = up to 30% either way)
 //   delay:       seconds before the first move [min, max]
 //   chip:        also consider small 15% attacks when sitting near the cap
-const EXPERT = { think: 0.2, openTrigger: 0.42, openShare: 0.55, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true };
-const HARD =   { think: 0.55, openTrigger: 0.45, openShare: 0.4, openGuard: 0.3, safety: 0.8, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false };
+const EXPERT = { think: 0.15, openTrigger: 0.42, openShare: 0.55, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true };
+const HARD =   { think: 0.7, openTrigger: 0.48, openShare: 0.33, openGuard: 0.35, safety: 1.0, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false };
 
 const BOT_TYPES = {
-  easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.2, 3],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
-            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.4, pick: 'random' },
+  easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.8, 4],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
+            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.6, hit: 0.12, pick: 'random' },
   medium: { label: 'Medium', delay: [0, 4], think: [0.6, 1.6], trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
             war: [0.85, 0.97], warShare: [0.25, 0.45], odds: [0.7, 1.1], aggression: [0, 0.08], idle: 0.1, pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
@@ -125,7 +125,7 @@ function botThink(game, p) {
   const P = personality(game, p, T);
   if (firstMove(game, p, T.delay)) return;
   p.nextThink = game.time + P.think * (0.6 + game.rand() * 0.8);
-  if (T.chaos) return chaosThink(game, p);
+  if (T.chaos) return chaosThink(game, p, T);
   const cap = maxTroops(p.tiles);
   if (game.attacks.some(a => a.attacker === p.id)) return;
   if (game.rand() < T.idle) return;
@@ -148,12 +148,12 @@ function botThink(game, p) {
 
 // Easy: a coin toss each time. Acts only above a random fill level, sends a random share, and
 // picks open land or a random neighbour (or a boat) without weighing anything.
-function chaosThink(game, p) {
+function chaosThink(game, p, T) {
   const r = () => game.rand();
-  if (r() < 0.35 || p.troops < (0.1 + r() * 0.8) * maxTroops(p.tiles)) return;
+  if (r() < T.idle || p.troops < (0.1 + r() * 0.8) * maxTroops(p.tiles)) return;
   const share = 0.1 + r() * 0.7;
   const near = neighbourIds(game, p);
-  if (near.length && r() < 0.25) { game.launchAttack(p, near[Math.floor(r() * near.length)].id, p.troops * share); return; }
+  if (near.length && r() < T.hit) { game.launchAttack(p, near[Math.floor(r() * near.length)].id, p.troops * share); return; }
   if (game.touches(p.id, NEUTRAL)) { game.launchAttack(p, NEUTRAL, p.troops * share); return; }
   if (r() < 0.3) tryBoat(game, p, share, share);
 }
