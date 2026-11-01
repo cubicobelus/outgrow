@@ -1,7 +1,7 @@
 # Territory (working title)
 
 A territory-control strategy game in your browser. Start from a small patch of land, send troops to claim more,
-and outgrow ten rival nations on a generated continent. Plain HTML and JavaScript on a canvas, no build step,
+and outgrow ten rival bots on a generated continent. Plain HTML and JavaScript on a canvas, no build step,
 no dependencies.
 
 ## Play
@@ -20,7 +20,11 @@ To run it offline, download the repo and open `index.html` in a browser.
   the more troops they hold per tile.
 - **Space** pauses. 1x, 2x and 4x change the speed.
 
-You win by holding 80% of the land or outlasting every rival.
+You win by holding 80% of the land or outlasting every rival. Otherwise, when the 15 minute clock runs out,
+whoever holds the most land wins.
+
+The ten rivals come in four levels: **Easy**, **Medium**, **Hard** and **Expert**. They all play by the same rules
+as you. Easy and Medium make classic mistakes; Hard and Expert grab land fast and only attack when it pays.
 
 ## License
 

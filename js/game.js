@@ -1,4 +1,4 @@
-// Game state and rules: ownership, troops, attacks, bots. No drawing here.
+// Game state and rules: ownership, troops, attacks. Bot decisions are in bots.js. No drawing here.
 
 const TICK = 0.1; // seconds per simulation step
 const NEUTRAL = -1;
@@ -7,11 +7,9 @@ const PLAYER_COLORS = [
   [235, 64, 52], [52, 120, 235], [240, 200, 40], [150, 70, 210], [30, 190, 170], [240, 130, 30],
   [220, 80, 170], [110, 200, 60], [90, 90, 200], [190, 120, 80], [60, 160, 230], [200, 200, 200],
 ];
-const BOT_NAMES = ['Ashford', 'Brennick', 'Corvale', 'Dunmere', 'Eastholm', 'Fenwick',
-  'Galloway', 'Harrowgate', 'Ironbridge', 'Kestrel', 'Larkspur'];
-
 class Game {
-  constructor(map, seed, botCount) {
+  // lineup: bot type keys from BOT_TYPES, one per bot.
+  constructor(map, seed, lineup) {
     this.map = map;
     this.w = map.w; this.h = map.h;
     this.rand = mulberry32(seed ^ 0x9e3779b9);
@@ -22,18 +20,18 @@ class Game {
     this.time = 0;
     this.landTiles = 0;
     for (const t of map.terrain) if (t !== WATER) this.landTiles++;
-    this.human = this.addPlayer('You', PLAYER_COLORS[0], false);
-    for (let b = 0; b < botCount; b++) {
-      this.addPlayer(BOT_NAMES[b % BOT_NAMES.length], PLAYER_COLORS[(b + 1) % PLAYER_COLORS.length], true);
-    }
+    this.human = this.addPlayer('You', PLAYER_COLORS[0], null);
+    const counts = {};
+    lineup.forEach((type, b) => {
+      counts[type] = (counts[type] || 0) + 1;
+      this.addPlayer(`${BOT_TYPES[type].label} ${counts[type]}`, PLAYER_COLORS[(b + 1) % PLAYER_COLORS.length], type);
+    });
   }
 
-  addPlayer(name, color, isBot) {
+  addPlayer(name, color, botType) {
     const p = {
-      id: this.players.length, name, color, isBot, alive: true, spawned: false,
-      troops: 0, tiles: 0, sumX: 0, sumY: 0, border: new Set(),
-      // Bots fire when troops reach this share of their cap.
-      trigger: 0.28 + this.rand() * 0.15, nextThink: 0,
+      id: this.players.length, name, color, isBot: !!botType, botType, alive: true, spawned: false,
+      troops: 0, tiles: 0, sumX: 0, sumY: 0, border: new Set(), nextThink: 0,
     };
     this.players.push(p);
     return p;
@@ -160,12 +158,14 @@ class Game {
     return true;
   }
 
-  tileCost(i, target) {
-    const mult = TERRAIN[this.map.terrain[i]].mult;
-    let cost = ECON.tileCost * mult;
+  // Owned land costs more the more troops the defender holds per tile, and big empires
+  // pay extra to attack players, which slows down a runaway leader.
+  tileCost(i, target, attacker) {
+    let cost = ECON.tileCost * TERRAIN[this.map.terrain[i]].mult;
     if (target !== NEUTRAL) {
       const d = this.players[target];
       cost += ECON.defenseMult * d.troops / Math.max(1, d.tiles);
+      cost *= 1 + ECON.sizePenalty * this.players[attacker].tiles / this.landTiles;
     }
     return cost;
   }
@@ -182,7 +182,7 @@ class Game {
     const n = Math.max(1, Math.ceil(cand.length * ECON.spreadFrac));
     for (let k = 0; k < n; k++) {
       const i = cand[k][0];
-      const cost = this.tileCost(i, a.target);
+      const cost = this.tileCost(i, a.target, a.attacker);
       if (a.troops < cost) return false;
       a.troops -= cost;
       if (def) def.troops -= Math.min(def.troops, def.troops / Math.max(1, def.tiles));
@@ -192,36 +192,12 @@ class Game {
     return a.troops >= ECON.tileCost;
   }
 
-  stepBot(p) {
-    if (this.time < p.nextThink) return;
-    p.nextThink = this.time + 0.5 + this.rand();
-    const cap = maxTroops(p.tiles);
-    if (p.troops < p.trigger * cap) return;
-    if (this.attacks.some(a => a.attacker === p.id)) return;
-    if (this.touches(p.id, NEUTRAL)) {
-      this.launchAttack(p, NEUTRAL, p.troops * 0.4);
-      return;
-    }
-    // No open land left: hit the weakest neighbour if clearly stronger.
-    const near = new Set();
-    for (const b of p.border) for (const j of this.neighbors(b)) {
-      const o = this.owner[j];
-      if (o !== NEUTRAL && o !== p.id) near.add(o);
-    }
-    let best = null;
-    for (const id of near) {
-      const q = this.players[id];
-      if (!best || q.troops / q.tiles < best.troops / best.tiles) best = q;
-    }
-    if (best && p.troops > best.troops * 1.2) this.launchAttack(p, best.id, p.troops * 0.5);
-  }
-
   step() {
     this.time += TICK;
     for (const p of this.players) {
       if (!p.alive || !p.spawned) continue;
       p.troops += growthPerSec(p.troops, maxTroops(p.tiles)) * TICK;
-      if (p.isBot) this.stepBot(p);
+      if (p.isBot) botThink(this, p);
     }
     const keep = [];
     for (const a of this.attacks) {
@@ -231,13 +207,21 @@ class Game {
     this.attacks = keep;
   }
 
+  // The winning player, or null while the match is on.
+  winner() {
+    const alive = this.players.filter(p => p.alive && p.spawned);
+    if (!alive.length) return null;
+    const top = alive.reduce((a, b) => (b.tiles > a.tiles ? b : a));
+    if (alive.length === 1 || top.tiles >= this.landTiles * ECON.winShare || this.time >= ECON.matchTime) return top;
+    return null;
+  }
+
   // 'win', 'lose' or null.
   outcome() {
     const h = this.human;
     if (!h.spawned) return null;
     if (!h.alive) return 'lose';
-    const botsLeft = this.players.some(p => p.isBot && p.alive);
-    if (!botsLeft || h.tiles >= this.landTiles * 0.8) return 'win';
-    return null;
+    const w = this.winner();
+    return w ? (w === h ? 'win' : 'lose') : null;
   }
 }

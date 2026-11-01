@@ -1,6 +1,6 @@
 // Page wiring: input, HUD, the main loop.
 
-const MAP_W = 220, MAP_H = 140, BOTS = 10;
+const MAP_W = 220, MAP_H = 140;
 const SHARES = [0.2, 0.4, 0.6, 0.8];
 
 const canvas = document.getElementById('map');
@@ -9,7 +9,7 @@ let game, renderer, share = 0.4, speed = 1, paused = false, acc = 0, last = 0, m
 
 function newGame(seed) {
   seed = seed ?? Math.floor(Math.random() * 1e9);
-  game = new Game(generateMap(MAP_W, MAP_H, seed), seed, BOTS);
+  game = new Game(generateMap(MAP_W, MAP_H, seed), seed, BOT_LINEUP);
   game.spawnBots();
   renderer = new Renderer(canvas, game);
   renderer.resize();
@@ -79,6 +79,8 @@ function updateHud() {
   el('fill').style.width = `${Math.min(100, me.troops / cap * 100)}%`;
   el('growth').textContent = `+${fmt(growthPerSec(me.troops, cap))}/s`;
   el('land').textContent = `${me.tiles} tiles (${(me.tiles / game.landTiles * 100).toFixed(1)}%)`;
+  const left = Math.max(0, Math.ceil(ECON.matchTime - game.time));
+  el('clock').textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
   el('sending').textContent = fmt(me.troops * share);
   el('attacks').innerHTML = game.attacks
     .filter(a => a.attacker === me.id)
@@ -99,7 +101,9 @@ function frame(now) {
     const result = watching ? null : game.outcome();
     if (result) {
       ended = true;
-      el('result').textContent = result === 'win' ? 'You win' : 'You were wiped out';
+      const w = game.winner();
+      el('result').textContent = result === 'win' ? 'You win'
+        : !game.human.alive ? 'You were wiped out' : `${w.name} wins`;
       el('overlay').hidden = false;
     }
   }

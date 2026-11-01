@@ -8,8 +8,11 @@ const ECON = {
   growthShape: 1.5,    // growth peaks at troops = cap / (1 + growthShape), about 40% of cap
   tileCost: 20,        // troops spent to take one open plains tile
   defenseMult: 2,      // extra cost per owned tile = defenseMult * defender troops per tile
+  sizePenalty: 0,      // attacking players costs x(1 + sizePenalty * attacker's share of all land)
   spreadFrac: 0.12,    // share of an attack's front taken each tick
   startTroopsFrac: 0.3,
+  matchTime: 900,      // seconds; when time runs out the most land wins
+  winShare: 0.8,       // or hold this share of the land to win early
   spawnRadius: 3,
 };
 
