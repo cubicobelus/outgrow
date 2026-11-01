@@ -18,6 +18,7 @@ class Game {
     this.players = [];
     this.attacks = [];
     this.boats = [];
+    this.wakes = []; // routes of boats that just landed, kept briefly so their trail can fade
     this.eliminated = []; // players in the order they fell
     this.dirty = new Set();
     this.time = 0;
@@ -320,6 +321,20 @@ class Game {
     return this.landTiles - owned;
   }
 
+  // Water tiles a boat can move to from water tile i: the four sides plus diagonals that do not
+  // cut across a land corner, so routes run straight and diagonal instead of in steps.
+  seaSteps(i) {
+    const w = this.w, x = i % w, y = (i - x) / w, out = [];
+    for (const j of this.neighbors(i)) if (this.isWater(j)) out.push(j);
+    for (const [dx, dy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= w || ny >= this.h) continue;
+      const j = ny * w + nx;
+      if (this.isWater(j) && this.isWater(y * w + nx) && this.isWater(ny * w + x)) out.push(j);
+    }
+    return out;
+  }
+
   // Sends a boat from p's coast to a shore of `target` (a player id or NEUTRAL) on landmass
   // `landmass` (any landmass when null): the shore closest to tile `near` if given, else the
   // closest one by sea. Returns false if there is no way there.
@@ -336,10 +351,10 @@ class Game {
     let best = null, bestD = Infinity;
     for (let qi = 0; qi < queue.length; qi++) {
       const wtile = queue[qi];
+      for (const j of this.seaSteps(wtile)) if (prev[j] === -2) { prev[j] = wtile; queue.push(j); }
       for (const j of this.neighbors(wtile)) {
-        if (this.isWater(j)) {
-          if (prev[j] === -2) { prev[j] = wtile; queue.push(j); }
-        } else if (this.owner[j] === target && (landmass === null || this.map.landId[j] === landmass)) {
+        if (this.isWater(j)) continue;
+        if (this.owner[j] === target && (landmass === null || this.map.landId[j] === landmass)) {
           if (near < 0) { best = [wtile, j]; break; }
           const d = (j % this.w - nx) ** 2 + (Math.floor(j / this.w) - ny) ** 2;
           if (d < bestD) { bestD = d; best = [wtile, j]; }
@@ -363,6 +378,7 @@ class Game {
       if (!p.alive) continue;
       b.pos += ECON.boatSpeed * TICK;
       if (b.pos < b.path.length - 1) { keep.push(b); continue; }
+      this.wakes.push({ owner: b.owner, path: b.path, until: this.time + 3 });
       // Landed: whoever holds the beach now is the enemy.
       const target = this.owner[b.land];
       if (target === p.id) { p.troops += b.troops; continue; }
@@ -379,6 +395,7 @@ class Game {
         fx: b.land % this.w, fy: Math.floor(b.land / this.w) });
     }
     this.boats = keep;
+    this.wakes = this.wakes.filter(t => t.until > this.time);
   }
 
   step() {

@@ -145,8 +145,30 @@ class Renderer {
     }
   }
 
+  // A boat's route: solid where it has been, faint dashes where it is going.
+  drawRoute(path, from, to, color, alpha, dashed) {
+    const g = this.game, ctx = this.ctx, v = this.view;
+    if (to - from < 1) return;
+    ctx.strokeStyle = `rgba(${color}, ${alpha})`;
+    ctx.lineWidth = 2 * this.dpr;
+    ctx.setLineDash(dashed ? [4 * this.dpr, 5 * this.dpr] : []);
+    ctx.beginPath();
+    for (let i = Math.floor(from); i <= Math.min(path.length - 1, Math.ceil(to)); i++) {
+      const x = v.x + (path[i] % g.w + 0.5) * v.scale, y = v.y + (Math.floor(path[i] / g.w) + 0.5) * v.scale;
+      if (i === Math.floor(from)) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
   drawBoats() {
     const g = this.game, ctx = this.ctx, v = this.view, k = this.dpr;
+    for (const t of g.wakes) this.drawRoute(t.path, 0, t.path.length - 1, g.players[t.owner].color, 0.6 * (t.until - g.time) / 3, false);
+    for (const b of g.boats) {
+      const c0 = g.players[b.owner].color;
+      this.drawRoute(b.path, 0, b.pos, c0, 0.75, false);
+      this.drawRoute(b.path, b.pos, b.path.length - 1, c0, 0.35, true);
+    }
     for (const b of g.boats) {
       const i = Math.min(b.path.length - 1, Math.floor(b.pos)), j = Math.min(b.path.length - 1, i + 1), f = b.pos - i;
       const x0 = b.path[i] % g.w, y0 = Math.floor(b.path[i] / g.w), x1 = b.path[j] % g.w, y1 = Math.floor(b.path[j] / g.w);
