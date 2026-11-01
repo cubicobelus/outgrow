@@ -1,4 +1,4 @@
-# Territory (working title)
+# Outgrow
 
 A territory-control strategy game in your browser. Start from a small patch of land, send troops to claim more,
 and outgrow ten rival bots on a generated continent. Plain HTML and JavaScript on a canvas, no build step,
@@ -6,7 +6,7 @@ no dependencies.
 
 ## Play
 
-**[Play in your browser](https://cubicobelus.github.io/territory-game/)**: nothing to download or install.
+**[Play in your browser](https://cubicobelus.github.io/outgrow/)**: nothing to download or install.
 
 To run it offline, download the repo and open `index.html` in a browser.
 
