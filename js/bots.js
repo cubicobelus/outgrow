@@ -6,7 +6,8 @@
 // and cheap to take.
 //   think:      seconds between decisions [min, max]
 //   trigger:    take open land when troops reach this share of cap [min, max], picked once per bot
-//   share:      share of troops sent at open land
+//   share:      share of troops sent at open land; earlyShare in the first earlyTime seconds
+//               (overspending at the start is a classic mistake: low troops grow slowly)
 //   war:        attack a player once troops reach this share of cap; warShare is the share sent
 //   aggression: chance to hit a neighbour even while open land is left
 //   idle:       chance to skip a decision
@@ -26,8 +27,8 @@ const EXPERT = { think: 0.2, openTrigger: 0.35, openShare: 0.45, openGuard: 0.5,
 const HARD =   { think: 0.4, openTrigger: 0.45, openShare: 0.35, openGuard: 0.3, safety: 0.9, minGain: 30, snipe: 1.2 };
 
 const BOT_TYPES = {
-  easy:   { label: 'Easy',   think: [1.5, 3],   trigger: [0.6, 0.8],   share: 0.25, war: 0.97, warShare: 0.25, aggression: 0,    idle: 0.5, pick: 'random' },
-  medium: { label: 'Medium', think: [0.8, 1.5], trigger: [0.45, 0.55], share: 0.35, war: 0.9,  warShare: 0.35, aggression: 0.03, idle: 0.1, pick: 'weakest' },
+  easy:   { label: 'Easy',   think: [1.5, 3],   trigger: [0.6, 0.8],   share: 0.25, earlyShare: 0.75, earlyTime: 60, war: 0.97, warShare: 0.25, aggression: 0,    idle: 0.5, pick: 'random' },
+  medium: { label: 'Medium', think: [0.8, 1.5], trigger: [0.45, 0.55], share: 0.35, earlyShare: 0.6,  earlyTime: 45, war: 0.9,  warShare: 0.35, aggression: 0.03, idle: 0.1, pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
   expert: { label: 'Expert', patient: EXPERT },
 };
@@ -83,7 +84,7 @@ function botThink(game, p) {
   }
   const open = game.touches(p.id, NEUTRAL);
   if (open && p.troops >= p.trigger * cap && !(target && game.rand() < T.aggression)) {
-    game.launchAttack(p, NEUTRAL, p.troops * T.share);
+    game.launchAttack(p, NEUTRAL, p.troops * (game.time < T.earlyTime ? T.earlyShare : T.share));
   } else if (target && p.troops >= (open ? p.trigger : T.war) * cap) {
     game.launchAttack(p, target.id, p.troops * T.warShare);
   }

@@ -18,6 +18,8 @@ class Game {
     this.attacks = [];
     this.dirty = new Set();
     this.time = 0;
+    this.phase = 'start';
+    this.startLeft = ECON.spawnTime;
     this.landTiles = 0;
     for (const t of map.terrain) if (t !== WATER) this.landTiles++;
     this.human = this.addPlayer('You', PLAYER_COLORS[0], null);
@@ -32,6 +34,7 @@ class Game {
     const p = {
       id: this.players.length, name, color, isBot: !!botType, botType, alive: true, spawned: false,
       troops: 0, tiles: 0, sumX: 0, sumY: 0, border: new Set(), nextThink: 0,
+      spawnAt: 0.5 + this.rand() * (ECON.spawnTime - 1.5), // when a bot places its start
     };
     this.players.push(p);
     return p;
@@ -88,10 +91,18 @@ class Game {
     this.attacks = this.attacks.filter(a => a.attacker !== p.id);
   }
 
-  // Claims a small disc around (cx, cy). Returns false if the spot is not open land.
-  spawn(p, cx, cy) {
+  // A start must be open land and at least ECON.spawnGap tiles from every other start.
+  canSpawn(p, cx, cy, gap = ECON.spawnGap) {
     const c = cy * this.w + cx;
-    if (!this.isLand(c) || this.owner[c] !== NEUTRAL) return false;
+    if (cx < 0 || cy < 0 || cx >= this.w || cy >= this.h || !this.isLand(c)) return false;
+    if (this.owner[c] !== NEUTRAL && this.owner[c] !== p.id) return false;
+    return !this.players.some(q => q !== p && q.spawned && (q.spawnX - cx) ** 2 + (q.spawnY - cy) ** 2 < gap * gap);
+  }
+
+  // Claims a small disc around (cx, cy), moving p's start if it already has one.
+  spawn(p, cx, cy, gap) {
+    if (!this.canSpawn(p, cx, cy, gap)) return false;
+    if (p.spawned) this.clearStart(p);
     const r = ECON.spawnRadius;
     for (let y = cy - r; y <= cy + r; y++) {
       for (let x = cx - r; x <= cx + r; x++) {
@@ -102,23 +113,66 @@ class Game {
       }
     }
     p.spawned = true;
+    p.spawnX = cx; p.spawnY = cy;
     p.troops = maxTroops(p.tiles) * ECON.startTroopsFrac;
     return true;
   }
 
-  spawnBots() {
-    const minDist = 14;
-    const taken = this.players.filter(p => p.spawned).map(p => [p.sumX / p.tiles, p.sumY / p.tiles]);
-    for (const p of this.players) {
-      if (!p.isBot || p.spawned) continue;
-      for (let tries = 0; tries < 2000; tries++) {
-        const x = Math.floor(this.rand() * this.w), y = Math.floor(this.rand() * this.h);
-        const d = tries < 1500 ? minDist : 4;
-        if (taken.some(([tx, ty]) => (tx - x) ** 2 + (ty - y) ** 2 < d * d)) continue;
-        if (this.spawn(p, x, y)) { taken.push([x, y]); break; }
-      }
-      if (!p.spawned) p.alive = false;
+  // Gives the start back without eliminating the player (only during the starting window).
+  clearStart(p) {
+    const tiles = [...p.border];
+    for (let i = 0; i < this.owner.length; i++) if (this.owner[i] === p.id) tiles.push(i);
+    for (const i of tiles) this.owner[i] = NEUTRAL;
+    p.tiles = 0; p.sumX = 0; p.sumY = 0; p.border.clear();
+    for (const i of tiles) {
+      this.dirty.add(i);
+      for (const j of this.neighbors(i)) { this.refreshBorder(j); this.dirty.add(j); }
     }
+  }
+
+  // A random valid spot. With `smart`, compares many and keeps the one with the most room:
+  // far from other starts and with plenty of cheap plains nearby.
+  findStart(p, smart) {
+    let best = null, bestScore = -1, found = 0;
+    for (let tries = 0; tries < 3000 && found < (smart ? 60 : 1); tries++) {
+      const x = Math.floor(this.rand() * this.w), y = Math.floor(this.rand() * this.h);
+      if (!this.canSpawn(p, x, y, tries < 2500 ? ECON.spawnGap : 4)) continue;
+      found++;
+      let score = 0;
+      if (smart) {
+        let near = 40;
+        for (const q of this.players) if (q !== p && q.spawned) near = Math.min(near, Math.hypot(q.spawnX - x, q.spawnY - y));
+        let plains = 0;
+        for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) {
+          const xx = x + dx, yy = y + dy;
+          if (xx >= 0 && yy >= 0 && xx < this.w && yy < this.h && this.map.terrain[yy * this.w + xx] === PLAINS) plains++;
+        }
+        score = near + plains * 0.3;
+      }
+      if (score > bestScore) { best = [x, y]; bestScore = score; }
+    }
+    return best;
+  }
+
+  placeBot(p) {
+    const spot = this.findStart(p, p.botType === 'hard' || p.botType === 'expert');
+    if (spot) this.spawn(p, spot[0], spot[1], 4);
+    else p.alive = false;
+  }
+
+  // Starting window: bots drop in at random moments, the human may place and move freely.
+  stepStart() {
+    this.startLeft -= TICK;
+    const elapsed = ECON.spawnTime - this.startLeft;
+    for (const p of this.players) if (p.isBot && p.alive && !p.spawned && elapsed >= p.spawnAt) this.placeBot(p);
+    if (this.startLeft > 0) return;
+    for (const p of this.players) {
+      if (!p.alive || p.spawned) continue;
+      if (p.isBot) this.placeBot(p);
+      else { const spot = this.findStart(p, false); if (spot) this.spawn(p, spot[0], spot[1], 4); }
+    }
+    this.phase = 'play';
+    this.time = 0;
   }
 
   // Tiles of `target` (or neutral land) touching `attacker`, with how many attacker tiles each touches.
@@ -193,6 +247,7 @@ class Game {
   }
 
   step() {
+    if (this.phase === 'start') return this.stepStart();
     this.time += TICK;
     for (const p of this.players) {
       if (!p.alive || !p.spawned) continue;
@@ -209,6 +264,7 @@ class Game {
 
   // The winning player, or null while the match is on.
   winner() {
+    if (this.phase === 'start') return null;
     const alive = this.players.filter(p => p.alive && p.spawned);
     if (!alive.length) return null;
     const top = alive.reduce((a, b) => (b.tiles > a.tiles ? b : a));

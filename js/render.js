@@ -66,6 +66,19 @@ class Renderer {
 
   drawLabels() {
     const g = this.game, ctx = this.ctx, v = this.view;
+    if (g.phase === 'start') {
+      // Show the no-go zone around other starts while everyone is placing.
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = 'rgba(255,255,255,0.55)';
+      for (const p of g.players) {
+        if (!p.spawned || p === g.human) continue;
+        ctx.beginPath();
+        ctx.arc(v.x + (p.spawnX + 0.5) * v.scale, v.y + (p.spawnY + 0.5) * v.scale, ECON.spawnGap * v.scale, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';

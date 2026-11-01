@@ -14,6 +14,8 @@ const ECON = {
   matchTime: 900,      // seconds; when time runs out the most land wins
   winShare: 0.8,       // or hold this share of the land to win early
   spawnRadius: 3,
+  spawnTime: 8,        // seconds of starting window where everyone places a start
+  spawnGap: 14,        // starts must be at least this many tiles apart
 };
 
 // Terrain ids index this table. Water cannot be taken.

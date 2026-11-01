@@ -28,8 +28,9 @@ button.on { background: #d9a52e; border-color: #d9a52e; color: #111; }
 #sending { min-width: 48px; }
 #hover { color: #9ab; min-width: 150px; }
 
-#msg, #paused { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(15, 22, 34, 0.9); padding: 8px 14px; border-radius: 6px; pointer-events: none; }
-#paused { top: 54px; }
+#msg, #paused, #start { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); background: rgba(15, 22, 34, 0.9); padding: 8px 14px; border-radius: 6px; pointer-events: none; }
+#msg, #paused { top: 54px; }
+#start { font-weight: 600; color: #d9a52e; }
 #overlay { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.4); }
 #overlay .panel { position: static; text-align: center; padding: 20px 28px; }
 #overlay h2 { margin: 0 0 14px; }

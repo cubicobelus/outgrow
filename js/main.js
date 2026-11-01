@@ -10,12 +10,11 @@ let game, renderer, share = 0.4, speed = 1, paused = false, acc = 0, last = 0, m
 function newGame(seed) {
   seed = seed ?? Math.floor(Math.random() * 1e9);
   game = new Game(generateMap(MAP_W, MAP_H, seed), seed, BOT_LINEUP);
-  game.spawnBots();
   renderer = new Renderer(canvas, game);
   renderer.resize();
   ended = false; watching = false;
   el('overlay').hidden = true;
-  showMsg('Click open land to place your start.', 0);
+  showMsg('', 0);
 }
 
 function showMsg(text, seconds) {
@@ -38,13 +37,12 @@ canvas.addEventListener('click', e => {
   const i = renderer.tileAt(e.clientX, e.clientY);
   if (i < 0 || ended) return;
   const me = game.human;
-  if (me.spawned && !me.alive) return;
-  if (!me.spawned) {
+  if (game.phase === 'start') {
     const x = i % game.w, y = (i - x) / game.w;
-    if (game.spawn(me, x, y)) showMsg('', 0);
-    else showMsg('Pick open land that nobody owns.', 2);
+    if (!game.spawn(me, x, y)) showMsg(game.isLand(i) ? 'Too close to another start.' : 'Pick land, not water.', 2);
     return;
   }
+  if (!me.alive) return;
   if (!game.isLand(i)) return;
   const target = game.owner[i];
   if (target === me.id) return;
@@ -95,7 +93,7 @@ function updateHud() {
 function frame(now) {
   const dt = Math.min(0.25, (now - last) / 1000 || 0);
   last = now;
-  if (!paused && game.human.spawned && !ended) {
+  if (!paused && !ended) {
     acc += dt * speed;
     while (acc >= TICK) { game.step(); acc -= TICK; }
     const result = watching ? null : game.outcome();
@@ -109,6 +107,10 @@ function frame(now) {
   }
   if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0) showMsg('', 0); }
   el('paused').hidden = !paused;
+  el('start').hidden = game.phase !== 'start';
+  if (game.phase === 'start') {
+    el('start').textContent = `${game.human.spawned ? 'Click to move your start' : 'Click open land to place your start'}: ${Math.ceil(game.startLeft)}s`;
+  }
   renderer.draw();
   updateHud();
   requestAnimationFrame(frame);
