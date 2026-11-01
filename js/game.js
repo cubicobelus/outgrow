@@ -192,6 +192,23 @@ class Game {
     return counts;
   }
 
+  // An attack's front. A beachhead attack (from a boat, with `edge`) only spreads from the tiles
+  // it took itself; any other attack uses the attacker's whole border with the target.
+  frontOf(a) {
+    if (!a.edge) return this.front(a.attacker, a.target);
+    const counts = new Map();
+    for (const t of a.edge) {
+      let open = false;
+      if (this.owner[t] === a.attacker) {
+        for (const j of this.neighbors(t)) {
+          if (this.owner[j] === a.target && this.isLand(j)) { counts.set(j, (counts.get(j) || 0) + 1); open = true; }
+        }
+      }
+      if (!open) a.edge.delete(t);
+    }
+    return counts;
+  }
+
   touches(attacker, target) {
     for (const b of this.players[attacker].border) {
       for (const j of this.neighbors(b)) if (this.owner[j] === target && this.isLand(j)) return true;
@@ -212,7 +229,7 @@ class Game {
       if (counter.troops <= 0) this.attacks.splice(this.attacks.indexOf(counter), 1);
       if (troops <= 0) return true;
     }
-    const same = this.attacks.find(a => a.attacker === p.id && a.target === target);
+    const same = this.attacks.find(a => a.attacker === p.id && a.target === target && !a.edge);
     if (same) same.troops += troops;
     else this.attacks.push({ attacker: p.id, target, troops });
     return true;
@@ -239,7 +256,7 @@ class Game {
   stepAttack(a) {
     const attacker = this.players[a.attacker];
     const def = a.target === NEUTRAL ? null : this.players[a.target];
-    const counts = this.front(a.attacker, a.target);
+    const counts = this.frontOf(a);
     if (counts.size === 0) return false;
     // Prefer tiles already wrapped by the attacker so fronts stay smooth, and easy ground:
     // rough terrain is taken later and the front moves slower through it.
@@ -260,6 +277,7 @@ class Game {
       a.troops -= cost;
       if (def) def.troops -= Math.min(def.troops, def.troops / Math.max(1, def.tiles));
       this.setOwner(i, attacker.id);
+      if (a.edge) a.edge.add(i);
       sx += i % this.w; sy += Math.floor(i / this.w); taken++;
       if (def && !def.alive) break;
     }
@@ -302,9 +320,10 @@ class Game {
     return this.landTiles - owned;
   }
 
-  // Sends a boat from p's coast to the nearest shore of `target` (a player id or NEUTRAL),
-  // on landmass `landmass` (or any landmass when null). Returns false if there is no way there.
-  sendBoat(p, target, landmass, troops) {
+  // Sends a boat from p's coast to a shore of `target` (a player id or NEUTRAL) on landmass
+  // `landmass` (any landmass when null): the shore closest to tile `near` if given, else the
+  // closest one by sea. Returns false if there is no way there.
+  sendBoat(p, target, landmass, troops, near = -1) {
     troops = Math.min(troops, p.troops);
     if (!p.alive || troops < ECON.tileCost * 3 || target === p.id) return false;
     if (this.boats.filter(b => b.owner === p.id).length >= ECON.maxBoats) return false;
@@ -313,22 +332,28 @@ class Game {
     for (const b of p.border) for (const j of this.neighbors(b)) {
       if (this.isWater(j) && prev[j] === -2) { prev[j] = -1; queue.push(j); }
     }
+    const nx = near % this.w, ny = Math.floor(near / this.w);
+    let best = null, bestD = Infinity;
     for (let qi = 0; qi < queue.length; qi++) {
       const wtile = queue[qi];
       for (const j of this.neighbors(wtile)) {
         if (this.isWater(j)) {
           if (prev[j] === -2) { prev[j] = wtile; queue.push(j); }
         } else if (this.owner[j] === target && (landmass === null || this.map.landId[j] === landmass)) {
-          const path = [];
-          for (let t = wtile; t !== -1; t = prev[t]) path.push(t);
-          path.reverse();
-          p.troops -= troops;
-          this.boats.push({ owner: p.id, target, troops, path, pos: 0, land: j });
-          return true;
+          if (near < 0) { best = [wtile, j]; break; }
+          const d = (j % this.w - nx) ** 2 + (Math.floor(j / this.w) - ny) ** 2;
+          if (d < bestD) { bestD = d; best = [wtile, j]; }
         }
       }
+      if (best && near < 0) break;
     }
-    return false;
+    if (!best) return false;
+    const path = [];
+    for (let t = best[0]; t !== -1; t = prev[t]) path.push(t);
+    path.reverse();
+    p.troops -= troops;
+    this.boats.push({ owner: p.id, target, troops, path, pos: 0, land: best[1] });
+    return true;
   }
 
   stepBoats() {
@@ -349,9 +374,9 @@ class Game {
         d.troops -= Math.min(d.troops, d.troops / Math.max(1, d.tiles));
       }
       this.setOwner(b.land, p.id);
-      const same = this.attacks.find(a => a.attacker === p.id && a.target === target);
-      if (same) same.troops += b.troops;
-      else this.attacks.push({ attacker: p.id, target, troops: b.troops, fx: b.land % this.w, fy: Math.floor(b.land / this.w) });
+      // The landing party fights on from the beach only, never merging into attacks elsewhere.
+      this.attacks.push({ attacker: p.id, target, troops: b.troops, edge: new Set([b.land]),
+        fx: b.land % this.w, fy: Math.floor(b.land / this.w) });
     }
     this.boats = keep;
   }

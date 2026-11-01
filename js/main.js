@@ -112,7 +112,7 @@ function clickTile(clientX, clientY) {
     showMsg(`All ${ECON.maxBoats} of your boats are at sea.`, 2);
   } else if (!game.hasCoast(me)) {
     showMsg('You need a coast to send boats.', 2);
-  } else if (!game.sendBoat(me, target, game.map.landId[i], troops)) {
+  } else if (!game.sendBoat(me, target, game.map.landId[i], troops, i)) {
     showMsg('No way to reach that by land or sea.', 2);
   }
 }
