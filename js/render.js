@@ -12,6 +12,7 @@ class Renderer {
     this.image = this.tctx.createImageData(game.w, game.h);
     for (let i = 0; i < game.w * game.h; i++) this.paintTile(i);
     this.view = { x: 0, y: 0, scale: 1 };
+    this.cam = { zoom: 1, cx: game.w / 2, cy: game.h / 2 }; // zoom 1 = whole map fits
   }
 
   paintTile(i) {
@@ -26,16 +27,41 @@ class Renderer {
   }
 
   resize() {
-    const dpr = window.devicePixelRatio || 1;
+    this.dpr = window.devicePixelRatio || 1;
     const r = this.canvas.getBoundingClientRect();
-    this.canvas.width = Math.round(r.width * dpr);
-    this.canvas.height = Math.round(r.height * dpr);
-    const scale = Math.min(this.canvas.width / this.game.w, this.canvas.height / this.game.h);
-    this.view = {
-      scale,
-      x: (this.canvas.width - this.game.w * scale) / 2,
-      y: (this.canvas.height - this.game.h * scale) / 2,
-    };
+    this.canvas.width = Math.round(r.width * this.dpr);
+    this.canvas.height = Math.round(r.height * this.dpr);
+    this.fit = Math.min(this.canvas.width / this.game.w, this.canvas.height / this.game.h);
+    this.updateView();
+  }
+
+  updateView() {
+    const c = this.cam, g = this.game;
+    c.zoom = Math.max(1, Math.min(10, c.zoom));
+    const scale = this.fit * c.zoom;
+    // Keep the map on screen: at full zoom out it is centred, zoomed in it cannot be dragged away.
+    const halfW = this.canvas.width / 2 / scale, halfH = this.canvas.height / 2 / scale;
+    c.cx = g.w / 2 <= halfW ? g.w / 2 : Math.max(halfW, Math.min(g.w - halfW, c.cx));
+    c.cy = g.h / 2 <= halfH ? g.h / 2 : Math.max(halfH, Math.min(g.h - halfH, c.cy));
+    this.view = { scale, x: this.canvas.width / 2 - c.cx * scale, y: this.canvas.height / 2 - c.cy * scale };
+  }
+
+  // Zooms by `factor`, keeping the map point under the cursor in place.
+  zoomAt(clientX, clientY, factor) {
+    const r = this.canvas.getBoundingClientRect();
+    const sx = (clientX - r.left) * this.dpr, sy = (clientY - r.top) * this.dpr;
+    const tx = (sx - this.view.x) / this.view.scale, ty = (sy - this.view.y) / this.view.scale;
+    this.cam.zoom *= factor;
+    this.updateView();
+    this.cam.cx += tx - (sx - this.view.x) / this.view.scale;
+    this.cam.cy += ty - (sy - this.view.y) / this.view.scale;
+    this.updateView();
+  }
+
+  panBy(dx, dy) {
+    this.cam.cx -= dx * this.dpr / this.view.scale;
+    this.cam.cy -= dy * this.dpr / this.view.scale;
+    this.updateView();
   }
 
   // Screen (CSS pixels) to tile index, or -1 outside the map.
@@ -97,6 +123,57 @@ class Renderer {
       ctx.strokeText(fmt(p.troops), x, y + size * 0.45);
       ctx.fillText(fmt(p.troops), x, y + size * 0.45);
     }
+    this.drawAttacks();
+    this.drawBoats();
+  }
+
+  // A pill with the attack's troops where its front is moving. Attacks on the human pulse red.
+  drawAttacks() {
+    const g = this.game, ctx = this.ctx, v = this.view, k = this.dpr;
+    const pulse = 0.5 + 0.5 * Math.sin(performance.now() / 120);
+    for (const a of g.attacks) {
+      if (a.fx === undefined) continue;
+      const x = v.x + (a.fx + 0.5) * v.scale, y = v.y + (a.fy + 0.5) * v.scale;
+      if (a.target === g.human.id) {
+        ctx.strokeStyle = `rgba(255, 70, 50, ${0.4 + 0.6 * pulse})`;
+        ctx.lineWidth = 3 * k;
+        ctx.beginPath();
+        ctx.arc(x, y, (14 + 6 * pulse) * k, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      this.pill(x, y, fmt(a.troops), g.players[a.attacker].color, a.target === g.human.id);
+    }
+  }
+
+  drawBoats() {
+    const g = this.game, ctx = this.ctx, v = this.view, k = this.dpr;
+    for (const b of g.boats) {
+      const i = Math.min(b.path.length - 1, Math.floor(b.pos)), j = Math.min(b.path.length - 1, i + 1), f = b.pos - i;
+      const x0 = b.path[i] % g.w, y0 = Math.floor(b.path[i] / g.w), x1 = b.path[j] % g.w, y1 = Math.floor(b.path[j] / g.w);
+      const x = v.x + (x0 + (x1 - x0) * f + 0.5) * v.scale, y = v.y + (y0 + (y1 - y0) * f + 0.5) * v.scale;
+      const c = g.players[b.owner].color;
+      ctx.fillStyle = `rgb(${c})`;
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 1.5 * k;
+      ctx.beginPath();
+      ctx.moveTo(x - 7 * k, y - 2 * k); ctx.lineTo(x + 7 * k, y - 2 * k); ctx.lineTo(x + 4 * k, y + 4 * k); ctx.lineTo(x - 4 * k, y + 4 * k);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      this.pill(x, y - 13 * k, fmt(b.troops), c, b.target === g.human.id);
+    }
+  }
+
+  pill(x, y, text, color, danger) {
+    const ctx = this.ctx, k = this.dpr;
+    ctx.font = `700 ${11 * k}px system-ui, sans-serif`;
+    const w = ctx.measureText(text).width + 10 * k, h = 16 * k;
+    ctx.fillStyle = 'rgba(10, 14, 22, 0.85)';
+    ctx.strokeStyle = danger ? '#ff4632' : `rgb(${color})`;
+    ctx.lineWidth = 2 * k;
+    ctx.beginPath();
+    ctx.roundRect(x - w / 2, y - h / 2, w, h, h / 2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.fillText(text, x, y + k * 0.5);
   }
 }
 

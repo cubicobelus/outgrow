@@ -17,6 +17,7 @@ class Game {
     this.owner = new Int16Array(this.w * this.h).fill(NEUTRAL);
     this.players = [];
     this.attacks = [];
+    this.boats = [];
     this.eliminated = []; // players in the order they fell
     this.dirty = new Set();
     this.time = 0;
@@ -90,6 +91,7 @@ class Game {
   eliminate(p) {
     p.alive = false;
     this.eliminated.push(p);
+    this.boats = this.boats.filter(b => b.owner !== p.id);
     p.troops = 0;
     this.attacks = this.attacks.filter(a => a.attacker !== p.id);
   }
@@ -215,16 +217,22 @@ class Game {
     return true;
   }
 
-  // Owned land costs more the more troops the defender holds per tile, and big empires
-  // pay extra to attack players, which slows down a runaway leader.
+  // Terrain multiplies everything. Open land touching a rival's border is contested and costs
+  // more; owned land costs more the more troops the defender holds per tile, and big empires
+  // can be made to pay extra to attack players (sizePenalty, off by default).
   tileCost(i, target, attacker) {
-    let cost = ECON.tileCost * TERRAIN[this.map.terrain[i]].mult;
-    if (target !== NEUTRAL) {
-      const d = this.players[target];
-      cost += ECON.defenseMult * d.troops / Math.max(1, d.tiles);
-      cost *= 1 + ECON.sizePenalty * this.players[attacker].tiles / this.landTiles;
+    const mult = TERRAIN[this.map.terrain[i]].mult;
+    if (target === NEUTRAL) {
+      let cost = ECON.tileCost * mult;
+      for (const j of this.neighbors(i)) {
+        const o = this.owner[j];
+        if (o !== NEUTRAL && o !== attacker) { cost *= ECON.contested; break; }
+      }
+      return cost;
     }
-    return cost;
+    const d = this.players[target];
+    return (ECON.tileCost + ECON.defenseMult * d.troops / Math.max(1, d.tiles)) * mult *
+      (1 + ECON.sizePenalty * this.players[attacker].tiles / this.landTiles);
   }
 
   stepAttack(a) {
@@ -232,21 +240,100 @@ class Game {
     const def = a.target === NEUTRAL ? null : this.players[a.target];
     const counts = this.front(a.attacker, a.target);
     if (counts.size === 0) return false;
-    // Prefer tiles already wrapped by the attacker so fronts stay smooth.
+    // Prefer tiles already wrapped by the attacker so fronts stay smooth, and easy ground:
+    // rough terrain is taken later and the front moves slower through it.
     const cand = [];
-    for (const [i, c] of counts) cand.push([i, c + this.rand() * 1.5]);
+    let reach = 0;
+    for (const [i, c] of counts) {
+      const mult = TERRAIN[this.map.terrain[i]].mult;
+      cand.push([i, (c + this.rand() * 1.5) / mult]);
+      reach += 1 / mult;
+    }
     cand.sort((p, q) => q[1] - p[1]);
-    const n = Math.max(1, Math.ceil(cand.length * ECON.spreadFrac));
+    const n = Math.min(cand.length, Math.max(1, Math.ceil(reach * ECON.spreadFrac)));
+    let sx = 0, sy = 0, taken = 0;
     for (let k = 0; k < n; k++) {
       const i = cand[k][0];
       const cost = this.tileCost(i, a.target, a.attacker);
-      if (a.troops < cost) return false;
+      if (a.troops < cost) break;
       a.troops -= cost;
       if (def) def.troops -= Math.min(def.troops, def.troops / Math.max(1, def.tiles));
       this.setOwner(i, attacker.id);
-      if (def && !def.alive) return false;
+      sx += i % this.w; sy += Math.floor(i / this.w); taken++;
+      if (def && !def.alive) break;
     }
+    // Where the fighting is, smoothed, for the number drawn on the map.
+    if (taken) {
+      const x = sx / taken, y = sy / taken;
+      if (a.fx === undefined || Math.hypot(a.fx - x, a.fy - y) > 25) { a.fx = x; a.fy = y; }
+      else { a.fx += (x - a.fx) * 0.15; a.fy += (y - a.fy) * 0.15; }
+    }
+    if (taken < n || (def && !def.alive)) return false;
     return a.troops >= ECON.tileCost;
+  }
+
+  // ---- boats ----
+
+  isWater(i) { return this.map.terrain[i] === WATER; }
+
+  neutralLeft() {
+    let owned = 0;
+    for (const p of this.players) if (p.alive) owned += p.tiles;
+    return this.landTiles - owned;
+  }
+
+  // Sends a boat from p's coast to the nearest shore of `target` (a player id or NEUTRAL),
+  // on landmass `landmass` (or any landmass when null). Returns false if there is no way there.
+  sendBoat(p, target, landmass, troops) {
+    troops = Math.min(troops, p.troops);
+    if (!p.alive || troops < ECON.tileCost * 3 || target === p.id) return false;
+    if (this.boats.filter(b => b.owner === p.id).length >= ECON.maxBoats) return false;
+    const prev = new Int32Array(this.w * this.h).fill(-2);
+    const queue = [];
+    for (const b of p.border) for (const j of this.neighbors(b)) {
+      if (this.isWater(j) && prev[j] === -2) { prev[j] = -1; queue.push(j); }
+    }
+    for (let qi = 0; qi < queue.length; qi++) {
+      const wtile = queue[qi];
+      for (const j of this.neighbors(wtile)) {
+        if (this.isWater(j)) {
+          if (prev[j] === -2) { prev[j] = wtile; queue.push(j); }
+        } else if (this.owner[j] === target && (landmass === null || this.map.landId[j] === landmass)) {
+          const path = [];
+          for (let t = wtile; t !== -1; t = prev[t]) path.push(t);
+          path.reverse();
+          p.troops -= troops;
+          this.boats.push({ owner: p.id, target, troops, path, pos: 0, land: j });
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  stepBoats() {
+    const keep = [];
+    for (const b of this.boats) {
+      const p = this.players[b.owner];
+      if (!p.alive) continue;
+      b.pos += ECON.boatSpeed * TICK;
+      if (b.pos < b.path.length - 1) { keep.push(b); continue; }
+      // Landed: whoever holds the beach now is the enemy.
+      const target = this.owner[b.land];
+      if (target === p.id) { p.troops += b.troops; continue; }
+      const cost = this.tileCost(b.land, target, p.id);
+      if (b.troops < cost) continue; // too few to take the beach: lost
+      b.troops -= cost;
+      if (target !== NEUTRAL) {
+        const d = this.players[target];
+        d.troops -= Math.min(d.troops, d.troops / Math.max(1, d.tiles));
+      }
+      this.setOwner(b.land, p.id);
+      const same = this.attacks.find(a => a.attacker === p.id && a.target === target);
+      if (same) same.troops += b.troops;
+      else this.attacks.push({ attacker: p.id, target, troops: b.troops, fx: b.land % this.w, fy: Math.floor(b.land / this.w) });
+    }
+    this.boats = keep;
   }
 
   step() {
@@ -263,6 +350,7 @@ class Game {
       else if (this.players[a.attacker].alive) this.players[a.attacker].troops += a.troops;
     }
     this.attacks = keep;
+    this.stepBoats();
   }
 
   // The winning player, or null while the match is on.

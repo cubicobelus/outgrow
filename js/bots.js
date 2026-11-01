@@ -23,7 +23,7 @@
 //                any neighbour has left
 //   minGain:     smallest attack on a player worth making, in tiles
 //   snipe:       hit any neighbour whose land costs at most this many times open land
-const EXPERT = { think: 0.2, openTrigger: 0.35, openShare: 0.45, openGuard: 0.5, safety: 0.6, minGain: 30, snipe: 1.5 };
+const EXPERT = { think: 0.2, openTrigger: 0.35, openShare: 0.5, openGuard: 0.5, safety: 0.6, minGain: 30, snipe: 1.5 };
 const HARD =   { think: 0.4, openTrigger: 0.45, openShare: 0.35, openGuard: 0.3, safety: 0.9, minGain: 30, snipe: 1.2 };
 
 const BOT_TYPES = {
@@ -50,8 +50,29 @@ function neighbourIds(game, p) {
 
 // Expected troops per tile when p attacks q.
 function estCost(game, p, q) {
-  return (ECON.tileCost * AVG_TERRAIN + ECON.defenseMult * density(q)) *
+  return (ECON.tileCost + ECON.defenseMult * density(q)) * AVG_TERRAIN *
     (1 + ECON.sizePenalty * p.tiles / game.landTiles);
+}
+
+// Each bot gets its own slight lean, so two bots of one level never move in lockstep.
+function lean(game, p) {
+  if (!p.lean) {
+    const j = () => 1 + (game.rand() - 0.5) * 0.2;
+    p.lean = { trigger: j(), share: j(), safety: j() };
+  }
+  return p.lean;
+}
+
+// With no reachable land to take, cross the water: open land first, else (when `war` is set)
+// the weakest player anywhere. Tried at most every 3 seconds since the search covers the sea.
+function tryBoat(game, p, share, war) {
+  if (game.time < (p.nextBoat || 0)) return false;
+  p.nextBoat = game.time + 3;
+  if (game.neutralLeft() > 0) return game.sendBoat(p, NEUTRAL, null, p.troops * share);
+  if (!war) return false;
+  let weak = null;
+  for (const q of game.players) if (q.alive && q.spawned && q !== p && (!weak || q.troops < weak.troops)) weak = q;
+  return !!weak && game.sendBoat(p, weak.id, null, p.troops * war);
 }
 
 // What happens if p sends `share` of its troops at q: tiles gained, whether q is wiped out,
@@ -85,13 +106,16 @@ function botThink(game, p) {
   const open = game.touches(p.id, NEUTRAL);
   if (open && p.troops >= p.trigger * cap && !(target && game.rand() < T.aggression)) {
     game.launchAttack(p, NEUTRAL, p.troops * (game.time < T.earlyTime ? T.earlyShare : T.share));
+  } else if (!open && p.troops >= p.trigger * cap && tryBoat(game, p, T.share, target ? 0 : T.warShare)) {
+    return;
   } else if (target && p.troops >= (open ? p.trigger : T.war) * cap) {
     game.launchAttack(p, target.id, p.troops * T.warShare);
   }
 }
 
 function patientThink(game, p, E) {
-  p.nextThink = game.time + E.think;
+  const L = lean(game, p);
+  p.nextThink = game.time + E.think * (0.7 + game.rand() * 0.6);
   const cap = maxTroops(p.tiles);
   const busy = target => game.attacks.some(a => a.attacker === p.id && a.target === target);
   const near = neighbourIds(game, p);
@@ -108,18 +132,20 @@ function patientThink(game, p, E) {
   }
 
   if (game.touches(p.id, NEUTRAL)) {
-    const send = Math.min(p.troops * E.openShare, p.troops - guard);
-    if (!busy(NEUTRAL) && p.troops >= E.openTrigger * cap && send > openCost * 5) game.launchAttack(p, NEUTRAL, send);
+    const send = Math.min(p.troops * E.openShare * L.share, p.troops - guard);
+    if (!busy(NEUTRAL) && p.troops >= E.openTrigger * L.trigger * cap && send > openCost * 5) game.launchAttack(p, NEUTRAL, send);
     return;
   }
-  if (!near.length || game.attacks.some(a => a.attacker === p.id)) return;
+  if (game.attacks.some(a => a.attacker === p.id)) return;
+  if (p.troops >= E.openTrigger * L.trigger * cap && tryBoat(game, p, E.openShare * L.share, near.length ? 0 : 0.5)) return;
+  if (!near.length) return;
 
   // Only attack when it stays safe; among safe options take the most land, wiping someone out counts double.
   let best = null, bestScore = 0;
   for (const q of near) {
     for (const share of [0.3, 0.5, 0.7]) {
       const pl = plan(game, p, q, share, near);
-      if (pl.safe < E.safety || pl.gain < E.minGain) continue;
+      if (pl.safe < E.safety * L.safety || pl.gain < E.minGain) continue;
       const score = pl.gain * (pl.wipes ? 2 : 1);
       if (score > bestScore) { best = [q, Math.min(pl.send, q.tiles * estCost(game, p, q) * 1.2)]; bestScore = score; }
     }

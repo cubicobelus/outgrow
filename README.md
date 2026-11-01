@@ -14,11 +14,12 @@ To run it offline, download the repo and open `index.html` in a browser.
 
 - **Troops** grow over time, but only up to your **cap**, which rises with the land you hold. Growth is fastest
   around 40% of your cap (the tick on the troop bar) and stops at the cap, so sitting full wastes time.
-- **Click** open land or a neighbour's land to send the chosen share of your troops (**1** to **4**, or the buttons
-  at the bottom). An attack spreads along your shared border until its troops run out.
-- Open plains are cheapest. Forest, hills and mountains cost more per tile, and land someone already owns costs more
-  the more troops they hold per tile.
-- **Space** pauses, **Esc** opens the menu. 1x, 2x and 4x change the speed.
+- **Click** open land or a neighbour's land to send the chosen share of your troops (**1** to **5**, or the buttons
+  at the bottom). An attack spreads along your shared border until its troops run out; its troops show on the map.
+- **Boats:** click land you can only reach across water to send your troops by boat. Up to 3 at sea at once.
+- Open plains are cheapest and fastest. Forest, hills and mountains cost more, slow attacks down and help defenders.
+  Open land next to a rival costs extra, and land someone owns costs more the more troops they hold per tile.
+- **Scroll** or pinch to zoom and drag to move the map. **Space** pauses, **Esc** opens the menu. 1x, 2x and 4x change the speed.
 - From the main menu you pick how many bots of each level to face (up to 15) and a 10, 15 or 20 minute match.
 
 You win by holding 80% of the land or outlasting every rival. Otherwise, when the clock runs out,

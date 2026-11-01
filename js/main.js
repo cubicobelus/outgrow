@@ -1,7 +1,7 @@
 // Page wiring: menus, input, HUD, the main loop.
 
 const MAP_W = 220, MAP_H = 140;
-const SHARES = [0.2, 0.4, 0.6, 0.8];
+const SHARES = [0.1, 0.2, 0.4, 0.6, 0.8];
 const LEVELS = [
   ['easy', 'Easy', 'makes mistakes'],
   ['medium', 'Medium', 'gets greedy'],
@@ -15,6 +15,7 @@ const el = id => document.getElementById(id);
 const setup = { easy: 3, medium: 3, hard: 2, expert: 2, length: 900 };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
+let warned = new Set(); // attacks and boats on the human already announced
 
 function lineupFromSetup() {
   return LEVELS.flatMap(([key]) => Array(setup[key]).fill(key));
@@ -27,7 +28,7 @@ function load(lineup, human) {
   game.human.peak = 0;
   renderer = new Renderer(canvas, game);
   renderer.resize();
-  ended = false; watching = false; paused = false; acc = 0;
+  ended = false; watching = false; paused = false; acc = 0; warned = new Set();
   showMsg('', 0);
 }
 
@@ -86,9 +87,9 @@ function renderSetup() {
 
 // ---- input ----
 
-canvas.addEventListener('click', e => {
+function clickTile(clientX, clientY) {
   if (mode !== 'game' || ended || paused) return;
-  const i = renderer.tileAt(e.clientX, e.clientY);
+  const i = renderer.tileAt(clientX, clientY);
   if (i < 0) return;
   const me = game.human;
   if (game.phase === 'start') {
@@ -99,10 +100,53 @@ canvas.addEventListener('click', e => {
   if (!me.alive || !game.isLand(i)) return;
   const target = game.owner[i];
   if (target === me.id) return;
-  if (!game.launchAttack(me, target, me.troops * share)) {
-    showMsg(target === NEUTRAL ? 'No open land touches your border.' : 'You do not border them yet.', 2);
+  const troops = me.troops * share;
+  if (game.launchAttack(me, target, troops)) return;
+  // Not touching by land: try a boat to that landmass.
+  if (game.boats.filter(b => b.owner === me.id).length >= ECON.maxBoats) {
+    showMsg(`All ${ECON.maxBoats} of your boats are at sea.`, 2);
+  } else if (!game.sendBoat(me, target, game.map.landId[i], troops)) {
+    showMsg('No way to reach that by land or sea.', 2);
   }
+}
+
+// Pointer input: a tap or click acts on a tile, a drag pans, two fingers pinch to zoom.
+const pointers = new Map();
+let dragged = false, pinchDist = 0;
+canvas.addEventListener('pointerdown', e => {
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY });
+  if (pointers.size === 1) dragged = false;
+  if (pointers.size === 2) { const [a, b] = [...pointers.values()]; pinchDist = Math.hypot(a.x - b.x, a.y - b.y); dragged = true; }
 });
+canvas.addEventListener('pointermove', e => {
+  const pt = pointers.get(e.pointerId);
+  if (!pt || mode !== 'game') return;
+  const dx = e.clientX - pt.x, dy = e.clientY - pt.y;
+  pt.x = e.clientX; pt.y = e.clientY;
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (pinchDist) renderer.zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, d / pinchDist);
+    pinchDist = d;
+    return;
+  }
+  if (!dragged && Math.hypot(e.clientX - pt.x0, e.clientY - pt.y0) > 6) dragged = true;
+  if (dragged) renderer.panBy(dx, dy);
+});
+const pointerEnd = e => {
+  if (!pointers.has(e.pointerId)) return;
+  pointers.delete(e.pointerId);
+  if (pointers.size === 0 && !dragged && e.type === 'pointerup') clickTile(e.clientX, e.clientY);
+  if (pointers.size < 2) pinchDist = 0;
+};
+canvas.addEventListener('pointerup', pointerEnd);
+canvas.addEventListener('pointercancel', pointerEnd);
+canvas.addEventListener('wheel', e => {
+  if (mode !== 'game') return;
+  e.preventDefault();
+  renderer.zoomAt(e.clientX, e.clientY, Math.pow(1.0015, -e.deltaY));
+}, { passive: false });
 
 canvas.addEventListener('mousemove', e => {
   if (mode !== 'game') return;
@@ -120,7 +164,7 @@ window.addEventListener('keydown', e => {
     setPaused(!paused);
   } else if (paused && !el('pause').hidden) {
     return;
-  } else if (e.key >= '1' && e.key <= '4') setShare(SHARES[+e.key - 1]);
+  } else if (e.key >= '1' && e.key <= '5') setShare(SHARES[+e.key - 1]);
   else if (e.key === ' ' && !ended) { paused = !paused; e.preventDefault(); }
 });
 
@@ -160,10 +204,12 @@ function updateHud() {
   el('clock').textContent = mmss(left);
   el('clock').classList.toggle('low', left <= 60 && game.phase === 'play');
   el('sending').textContent = fmt(me.troops * share);
-  el('attacks').innerHTML = game.attacks
-    .filter(a => a.attacker === me.id)
-    .map(a => `<div>&rarr; ${a.target === NEUTRAL ? 'Open land' : game.players[a.target].name}: ${fmt(a.troops)}</div>`)
-    .join('');
+  const name = id => (id === NEUTRAL ? 'Open land' : game.players[id].name);
+  el('attacks').innerHTML =
+    game.attacks.filter(a => a.target === me.id).map(a => `<div class="in">${name(a.attacker)} attacking: ${fmt(a.troops)}</div>`).join('') +
+    game.boats.filter(b => b.target === me.id).map(b => `<div class="in">${name(b.owner)} boat incoming: ${fmt(b.troops)}</div>`).join('') +
+    game.attacks.filter(a => a.attacker === me.id).map(a => `<div>&rarr; ${name(a.target)}: ${fmt(a.troops)}</div>`).join('') +
+    game.boats.filter(b => b.owner === me.id).map(b => `<div>Boat &rarr; ${name(b.target)}: ${fmt(b.troops)}</div>`).join('');
   const ranked = game.players.filter(p => p.alive && p.spawned).sort((a, b) => b.tiles - a.tiles).slice(0, 8);
   el('board').innerHTML = ranked.map(p =>
     `<tr${p === me ? ' class="me"' : ''}><td><span class="dot" style="background:rgb(${p.color})"></span>${p.name}</td>` +
@@ -193,6 +239,18 @@ function showEnd(result) {
   showScreen('overlay');
 }
 
+// A short warning the first time each attack or boat heads for the human.
+function warnIncoming() {
+  const me = game.human;
+  if (!me.alive) return;
+  for (const x of [...game.attacks.filter(a => a.target === me.id), ...game.boats.filter(b => b.target === me.id)]) {
+    if (warned.has(x)) continue;
+    warned.add(x);
+    showMsg(`${game.players[x.attacker ?? x.owner].name} is ${x.path ? 'sending a boat at' : 'attacking'} you!`, 2.5);
+    el('hud').classList.remove('hit'); void el('hud').offsetWidth; el('hud').classList.add('hit');
+  }
+}
+
 // ---- loop ----
 
 function frame(now) {
@@ -204,7 +262,10 @@ function frame(now) {
     game.human.peak = Math.max(game.human.peak, game.human.tiles);
     if (mode === 'menu') {
       if (game.winner()) load(game.players.filter(p => p.isBot).map(p => p.botType), false);
-    } else if (!watching) {
+    } else {
+      warnIncoming();
+    }
+    if (mode === 'game' && !watching) {
       const result = game.outcome();
       if (result) showEnd(result);
     }

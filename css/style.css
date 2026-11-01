@@ -31,6 +31,10 @@ button.on { background: var(--gold); border-color: var(--gold); color: #141414; 
 #fill { height: 100%; background: var(--gold); border-radius: 4px; }
 .bar .mark { position: absolute; left: 40%; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.6; }
 #attacks { margin-top: 6px; color: #ffcf8a; font-size: 13px; }
+#attacks .in { color: #ff7b6b; font-weight: 600; }
+#hud.hit { animation: hit 0.9s ease-out; }
+@keyframes hit { 0%, 30% { box-shadow: 0 0 0 3px #ff4632, 0 0 24px #ff4632; } 100% { box-shadow: none; } }
+#map { touch-action: none; }
 
 #side { top: 10px; right: 10px; display: flex; flex-direction: column; gap: 8px; }
 .side-row { display: flex; justify-content: space-between; gap: 8px; }
@@ -79,7 +83,10 @@ button.ghost:hover { background: var(--btn); }
 @media (max-width: 700px) {
   #side { top: auto; bottom: 64px; right: 10px; }
   #board { display: none; }
-  #bottom { flex-wrap: wrap; justify-content: center; width: calc(100% - 20px); }
+  #bottom { justify-content: center; width: calc(100% - 20px); gap: 6px; padding: 8px; }
+  #bottom .label { display: none; }
+  #shares button { padding: 5px 7px; }
+  #sending { min-width: 0; }
   #hover { display: none; }
   .card { padding: 20px; }
   .card h1 { font-size: 32px; }

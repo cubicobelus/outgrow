@@ -68,17 +68,18 @@ function generateMap(w, h, seed) {
     else if (e >= hillLine) terrain[i] = HILLS;
     else terrain[i] = moist[i] >= forestLine ? FOREST : PLAINS;
   }
-  keepLargestLandmass(w, h, terrain);
-  return { w, h, terrain };
+  const landId = labelLandmasses(w, h, terrain);
+  return { w, h, terrain, landId };
 }
 
-// No boats yet, so islands would be unreachable. Sink everything but the main continent.
-function keepLargestLandmass(w, h, terrain) {
+// Gives every landmass an id (water is -1). Islands smaller than ECON.minIsland are sunk.
+function labelLandmasses(w, h, terrain) {
   const comp = new Int32Array(w * h).fill(-1);
-  let best = -1, bestSize = 0, id = 0;
+  const sizes = [];
   const stack = [];
   for (let start = 0; start < terrain.length; start++) {
     if (terrain[start] === WATER || comp[start] >= 0) continue;
+    const id = sizes.length;
     let size = 0;
     comp[start] = id; stack.push(start);
     while (stack.length) {
@@ -88,8 +89,10 @@ function keepLargestLandmass(w, h, terrain) {
         if (n >= 0 && terrain[n] !== WATER && comp[n] < 0) { comp[n] = id; stack.push(n); }
       }
     }
-    if (size > bestSize) { bestSize = size; best = id; }
-    id++;
+    sizes.push(size);
   }
-  for (let i = 0; i < terrain.length; i++) if (terrain[i] !== WATER && comp[i] !== best) terrain[i] = WATER;
+  for (let i = 0; i < terrain.length; i++) {
+    if (comp[i] >= 0 && sizes[comp[i]] < ECON.minIsland) { terrain[i] = WATER; comp[i] = -1; }
+  }
+  return comp;
 }

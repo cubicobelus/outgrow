@@ -7,7 +7,7 @@ const ECON = {
   growthRate: 0.18,    // overall speed of troop growth
   growthShape: 1.5,    // growth peaks at troops = cap / (1 + growthShape), about 40% of cap
   tileCost: 20,        // troops spent to take one open plains tile
-  defenseMult: 2,      // extra cost per owned tile = defenseMult * defender troops per tile
+  defenseMult: 2,      // extra cost per owned tile = defenseMult * defender troops per tile * terrain mult
   sizePenalty: 0,      // attacking players costs x(1 + sizePenalty * attacker's share of all land)
   spreadFrac: 0.12,    // share of an attack's front taken each tick
   startTroopsFrac: 0.3,
@@ -16,9 +16,14 @@ const ECON = {
   spawnRadius: 3,
   spawnTime: 8,        // seconds of starting window where everyone places a start
   spawnGap: 14,        // starts must be at least this many tiles apart
+  contested: 1.5,      // open land touching a rival's border costs this many times more
+  minIsland: 40,       // smaller islands are sunk when the map is made
+  boatSpeed: 12,       // tiles per second
+  maxBoats: 3,         // boats at sea per player
 };
 
-// Terrain ids index this table. Water cannot be taken.
+// Terrain ids index this table. Water cannot be taken. mult raises the cost of a tile and
+// slows attacks through it, so armies flow through plains and grind through mountains.
 const TERRAIN = [
   { name: 'Water',     mult: Infinity, color: [38, 70, 110] },
   { name: 'Plains',    mult: 1,        color: [150, 178, 104] },
