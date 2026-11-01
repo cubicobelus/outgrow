@@ -276,6 +276,25 @@ class Game {
 
   isWater(i) { return this.map.terrain[i] === WATER; }
 
+  // Whether the patch of land around tile i (same owner, connected) touches p's territory.
+  reachableByLand(p, i) {
+    const o = this.owner[i];
+    const seen = new Set([i]), stack = [i];
+    while (stack.length) {
+      const t = stack.pop();
+      for (const j of this.neighbors(t)) {
+        if (this.owner[j] === p.id) return true;
+        if (!seen.has(j) && this.owner[j] === o && this.isLand(j)) { seen.add(j); stack.push(j); }
+      }
+    }
+    return false;
+  }
+
+  hasCoast(p) {
+    for (const b of p.border) for (const j of this.neighbors(b)) if (this.isWater(j)) return true;
+    return false;
+  }
+
   neutralLeft() {
     let owned = 0;
     for (const p of this.players) if (p.alive) owned += p.tiles;

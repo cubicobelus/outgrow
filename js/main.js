@@ -21,8 +21,10 @@ function lineupFromSetup() {
   return LEVELS.flatMap(([key]) => Array(setup[key]).fill(key));
 }
 
+// A match map can be fixed with ?seed=123 in the address, which helps to replay or test a map.
 function load(lineup, human) {
-  const seed = Math.floor(Math.random() * 1e9);
+  const fixed = human && new URLSearchParams(location.search).get('seed');
+  const seed = fixed ? +fixed : Math.floor(Math.random() * 1e9);
   game = new Game(generateMap(MAP_W, MAP_H, seed), seed, lineup);
   if (!human) game.human.alive = false;
   game.human.peak = 0;
@@ -101,10 +103,15 @@ function clickTile(clientX, clientY) {
   const target = game.owner[i];
   if (target === me.id) return;
   const troops = me.troops * share;
-  if (game.launchAttack(me, target, troops)) return;
-  // Not touching by land: try a boat to that landmass.
+  // Land that connects to ours is attacked over land; anything else needs a boat.
+  if (game.reachableByLand(me, i)) {
+    if (!game.launchAttack(me, target, troops)) showMsg('Not enough troops to attack.', 2);
+    return;
+  }
   if (game.boats.filter(b => b.owner === me.id).length >= ECON.maxBoats) {
     showMsg(`All ${ECON.maxBoats} of your boats are at sea.`, 2);
+  } else if (!game.hasCoast(me)) {
+    showMsg('You need a coast to send boats.', 2);
   } else if (!game.sendBoat(me, target, game.map.landId[i], troops)) {
     showMsg('No way to reach that by land or sea.', 2);
   }
