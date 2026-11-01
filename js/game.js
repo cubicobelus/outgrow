@@ -6,6 +6,7 @@ const NEUTRAL = -1;
 const PLAYER_COLORS = [
   [235, 64, 52], [52, 120, 235], [240, 200, 40], [150, 70, 210], [30, 190, 170], [240, 130, 30],
   [220, 80, 170], [110, 200, 60], [90, 90, 200], [190, 120, 80], [60, 160, 230], [200, 200, 200],
+  [130, 40, 60], [250, 170, 150], [40, 110, 80], [170, 170, 60],
 ];
 class Game {
   // lineup: bot type keys from BOT_TYPES, one per bot.
@@ -16,6 +17,7 @@ class Game {
     this.owner = new Int16Array(this.w * this.h).fill(NEUTRAL);
     this.players = [];
     this.attacks = [];
+    this.eliminated = []; // players in the order they fell
     this.dirty = new Set();
     this.time = 0;
     this.phase = 'start';
@@ -87,6 +89,7 @@ class Game {
 
   eliminate(p) {
     p.alive = false;
+    this.eliminated.push(p);
     p.troops = 0;
     this.attacks = this.attacks.filter(a => a.attacker !== p.id);
   }

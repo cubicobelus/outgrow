@@ -6,13 +6,13 @@
 <title>Territory</title>
 <link rel="stylesheet" href="css/style.css">
 </head>
-<body>
+<body class="in-menu">
 <canvas id="map"></canvas>
 
 <div id="hud" class="panel">
-  <div class="row"><span class="label">Time left</span><span id="clock"></span></div>
+  <div class="clock"><span class="label">Time left</span><span id="clock"></span></div>
   <div class="row"><span class="label">Troops</span><span id="troops"></span></div>
-  <div class="bar"><div id="fill"></div><div class="mark"></div></div>
+  <div class="bar" title="Growth is fastest near the tick"><div id="fill"></div><div class="mark"></div></div>
   <div class="row"><span class="label">Growth</span><span id="growth"></span></div>
   <div class="row"><span class="label">Land</span><span id="land"></span></div>
   <div id="attacks"></div>
@@ -20,13 +20,15 @@
 
 <div id="side" class="panel">
   <table id="board"></table>
-  <div id="speeds" class="buttons"><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button></div>
-  <button id="newmap">New map</button>
+  <div class="side-row">
+    <div id="speeds" class="seg"><button data-speed="1">1x</button><button data-speed="2">2x</button><button data-speed="4">4x</button></div>
+    <button id="pauseBtn" title="Menu (Esc)">Menu</button>
+  </div>
 </div>
 
 <div id="bottom" class="panel">
   <span class="label">Send</span>
-  <div id="shares" class="buttons"><button data-share="0.2">20%</button><button data-share="0.4">40%</button><button data-share="0.6">60%</button><button data-share="0.8">80%</button></div>
+  <div id="shares" class="seg"><button data-share="0.2">20%</button><button data-share="0.4">40%</button><button data-share="0.6">60%</button><button data-share="0.8">80%</button></div>
   <span id="sending"></span>
   <span id="hover"></span>
 </div>
@@ -34,11 +36,52 @@
 <div id="msg" hidden></div>
 <div id="paused" hidden>Paused</div>
 <div id="start" hidden></div>
-<div id="overlay" hidden>
-  <div class="panel">
+
+<div id="menu" class="screen">
+  <div class="card">
+    <h1>Territory</h1>
+    <p class="sub">Grab land, outbuild your rivals, hold the most when the clock runs out.</p>
+    <h3>Opponents</h3>
+    <div id="lineup"></div>
+    <h3>Match length</h3>
+    <div id="lengths" class="seg wide"><button data-len="600">10 min</button><button data-len="900">15 min</button><button data-len="1200">20 min</button></div>
+    <button id="play" class="primary">Play</button>
+    <button id="howBtn" class="ghost">How to play</button>
+  </div>
+</div>
+
+<div id="how" class="screen" hidden>
+  <div class="card">
+    <h2>How to play</h2>
+    <ul>
+      <li><b>Start:</b> in the first few seconds, click open land to place your start. Click again to move it. Starts cannot sit right next to each other.</li>
+      <li><b>Troops</b> grow on their own up to your <b>cap</b>, and more land means a higher cap. Growth is fastest around the tick on the troop bar and stops when you are full.</li>
+      <li><b>Attack:</b> click open land or a neighbour to send the chosen share of your troops (keys <b>1</b> to <b>4</b>). The attack spreads along your border until its troops run out.</li>
+      <li>Plains are cheapest; forest, hills and mountains cost more. Taking someone's land costs more the more troops they hold, so attacking first usually loses troops. Expand fast, do not send too much early, and strike when you clearly outnumber a neighbour.</li>
+      <li><b>Win</b> by holding 80% of the land, outlasting everyone, or holding the most land when time runs out.</li>
+      <li><b>Space</b> pauses, <b>Esc</b> opens the menu.</li>
+    </ul>
+    <button id="howBack" class="primary">Back</button>
+  </div>
+</div>
+
+<div id="pause" class="screen" hidden>
+  <div class="card small">
+    <h2>Paused</h2>
+    <button id="resume" class="primary">Resume</button>
+    <button id="restart" class="ghost">Restart</button>
+    <button id="pauseHow" class="ghost">How to play</button>
+    <button id="quit" class="ghost">Main menu</button>
+  </div>
+</div>
+
+<div id="overlay" class="screen" hidden>
+  <div class="card small">
     <h2 id="result"></h2>
-    <button id="again">New game</button>
-    <button id="watch">Keep watching</button>
+    <table id="stats"></table>
+    <button id="again" class="primary">Play again</button>
+    <button id="watch" class="ghost">Keep watching</button>
+    <button id="toMenu" class="ghost">Main menu</button>
   </div>
 </div>
 
