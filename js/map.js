@@ -72,8 +72,8 @@ function generateMap(w, h, seed) {
   return { w, h, terrain, landId };
 }
 
-// Gives every landmass an id (water is -1). Islands smaller than ECON.minIsland are sunk.
-function labelLandmasses(w, h, terrain) {
+// Gives every landmass an id (water is -1). Islands smaller than `minIsland` tiles are sunk.
+function labelLandmasses(w, h, terrain, minIsland = ECON.minIsland) {
   const comp = new Int32Array(w * h).fill(-1);
   const sizes = [];
   const stack = [];
@@ -92,7 +92,15 @@ function labelLandmasses(w, h, terrain) {
     sizes.push(size);
   }
   for (let i = 0; i < terrain.length; i++) {
-    if (comp[i] >= 0 && sizes[comp[i]] < ECON.minIsland) { terrain[i] = WATER; comp[i] = -1; }
+    if (comp[i] >= 0 && sizes[comp[i]] < minIsland) { terrain[i] = WATER; comp[i] = -1; }
   }
   return comp;
+}
+
+// A real-world map from worldmaps.js. Small real islands are kept (only specks are sunk).
+function loadWorldMap(key) {
+  const def = WORLD_MAPS[key], terrain = new Uint8Array(def.w * def.h);
+  let i = 0;
+  for (const [, n, c] of def.rle.matchAll(/(\d+)([wpfhm])/g)) terrain.fill('wpfhm'.indexOf(c), i, i += +n);
+  return { w: def.w, h: def.h, terrain, landId: labelLandmasses(def.w, def.h, terrain, 6) };
 }

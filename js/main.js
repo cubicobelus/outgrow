@@ -12,7 +12,7 @@ const MAX_BOTS = 15;
 
 const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
-const setup = { easy: 3, medium: 3, hard: 2, expert: 2, length: 900 };
+const setup = { easy: 3, medium: 3, hard: 2, expert: 2, length: 900, map: 'random' };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -25,7 +25,8 @@ function lineupFromSetup() {
 function load(lineup, human) {
   const fixed = human && new URLSearchParams(location.search).get('seed');
   const seed = fixed ? +fixed : Math.floor(Math.random() * 1e9);
-  game = new Game(generateMap(MAP_W, MAP_H, seed), seed, lineup);
+  const map = setup.map === 'random' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(setup.map);
+  game = new Game(map, seed, lineup);
   if (!human) game.human.alive = false;
   game.human.peak = 0;
   renderer = new Renderer(canvas, game);
@@ -85,6 +86,7 @@ function renderSetup() {
     `<span class="count">${setup[key]}</span>` +
     `<button data-key="${key}" data-d="1" ${total >= MAX_BOTS ? 'disabled' : ''}>+</button></div>`).join('');
   document.querySelectorAll('#lengths button').forEach(b => b.classList.toggle('on', +b.dataset.len === setup.length));
+  document.querySelectorAll('#maps button').forEach(b => b.classList.toggle('on', b.dataset.map === setup.map));
 }
 
 // ---- input ----
@@ -182,6 +184,8 @@ el('lineup').addEventListener('click', e => {
   renderSetup();
 });
 el('lengths').addEventListener('click', e => { if (e.target.dataset.len) { setup.length = +e.target.dataset.len; renderSetup(); } });
+// Picking a map also swaps the match behind the menu, as a preview.
+el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; renderSetup(); toMenu(); } });
 el('shares').addEventListener('click', e => { if (e.target.dataset.share) setShare(+e.target.dataset.share); });
 el('speeds').addEventListener('click', e => { if (e.target.dataset.speed) setSpeed(+e.target.dataset.speed); });
 el('play').addEventListener('click', startMatch);

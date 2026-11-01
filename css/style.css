@@ -66,6 +66,7 @@ button.primary:hover { background: #f0bd4a; }
 button.ghost { background: transparent; padding: 8px; }
 button.ghost:hover { background: var(--btn); }
 .seg.wide button { flex: 1; }
+.seg.grid { display: grid; grid-template-columns: repeat(3, 1fr); }
 
 #lineup .lv { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
 #lineup .name { flex: 1; }

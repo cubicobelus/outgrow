@@ -31,6 +31,10 @@ the bots drop in theirs. Starts must be at least 14 tiles apart.
 The ten rivals come in four levels: **Easy**, **Medium**, **Hard** and **Expert**. They all play by the same rules
 as you. Easy and Medium make classic mistakes; Hard and Expert grab land fast and only attack when it pays.
 
+## Credits
+
+Real-world maps are made with [Natural Earth](https://www.naturalearthdata.com/) data, which is in the public domain.
+
 ## License
 
 MIT, see [LICENSE](LICENSE).
