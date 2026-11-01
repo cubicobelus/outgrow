@@ -18,6 +18,7 @@ class Game {
     this.players = [];
     this.attacks = [];
     this.boats = [];
+    this.clashes = []; // player tiles just taken, flashed on the map
     this.wakes = []; // routes of boats that just landed, kept briefly so their trail can fade
     this.eliminated = []; // players in the order they fell
     this.dirty = new Set();
@@ -136,8 +137,9 @@ class Game {
     }
   }
 
-  // A random valid spot. With `looks` above 1, compares that many and keeps the one with the most
-  // room: far from other starts and with plenty of cheap plains nearby.
+  // A random valid spot. With `looks` above 1, compares that many and keeps the best: far from
+  // other starts, plenty of cheap plains nearby and land (not water) to grow into. Bots look more
+  // the better they are: Easy takes the first spot, Medium 3, Hard 10, Expert 60.
   findStart(p, looks = 1) {
     const smart = looks > 1;
     let best = null, bestScore = -1, found = 0;
@@ -149,12 +151,15 @@ class Game {
       if (smart) {
         let near = 40;
         for (const q of this.players) if (q !== p && q.spawned) near = Math.min(near, Math.hypot(q.spawnX - x, q.spawnY - y));
-        let plains = 0;
-        for (let dy = -8; dy <= 8; dy += 2) for (let dx = -8; dx <= 8; dx += 2) {
+        let plains = 0, room = 0;
+        for (let dy = -12; dy <= 12; dy += 2) for (let dx = -12; dx <= 12; dx += 2) {
           const xx = x + dx, yy = y + dy;
-          if (xx >= 0 && yy >= 0 && xx < this.w && yy < this.h && this.map.terrain[yy * this.w + xx] === PLAINS) plains++;
+          if (xx < 0 || yy < 0 || xx >= this.w || yy >= this.h) continue;
+          const t = this.map.terrain[yy * this.w + xx];
+          if (t !== WATER) room++;
+          if (t === PLAINS && dx * dx + dy * dy <= 64) plains++;
         }
-        score = near + plains * 0.3;
+        score = near + plains * 0.3 + room * 0.1;
       }
       if (score > bestScore) { best = [x, y]; bestScore = score; }
     }
@@ -162,7 +167,7 @@ class Game {
   }
 
   placeBot(p) {
-    const spot = this.findStart(p, { hard: 10, expert: 60 }[p.botType] || 1);
+    const spot = this.findStart(p, { medium: 3, hard: 10, expert: 60 }[p.botType] || 1);
     if (spot) this.spawn(p, spot[0], spot[1], 4);
     else p.alive = false;
   }
@@ -259,26 +264,35 @@ class Game {
     const def = a.target === NEUTRAL ? null : this.players[a.target];
     const counts = this.frontOf(a);
     if (counts.size === 0) return false;
-    // Prefer tiles already wrapped by the attacker so fronts stay smooth, and easy ground:
-    // rough terrain is taken later and the front moves slower through it.
-    const cand = [];
-    let reach = 0;
-    for (const [i, c] of counts) {
-      const mult = TERRAIN[this.map.terrain[i]].mult;
-      cand.push([i, (c + this.rand() * 1.5) / mult]);
-      reach += 1 / mult;
+    let pick = [];
+    if (def) {
+      // Against a player the front moves as a line: the most wrapped tiles fall first, so gaps
+      // fill in before the line pushes deeper. Rough ground slows the whole line and costs more.
+      let sumMult = 0;
+      const cand = [];
+      for (const [i, c] of counts) { sumMult += TERRAIN[this.map.terrain[i]].mult; cand.push([i, c + this.rand() * 0.6]); }
+      const n = Math.max(1, Math.round(cand.length * ECON.spreadFrac * 1.15 / Math.pow(sumMult / cand.length, 1.3) + this.rand() - 0.5));
+      cand.sort((p, q) => q[1] - p[1]);
+      pick = cand.slice(0, n).map(x => x[0]);
+    } else {
+      // Open land: every front tile may fall this tick, each terrain at its own pace (plains fast,
+      // mountains about four times slower), so a front touching both advances on both, unequally.
+      // Tiles already wrapped by the attacker fall sooner, which keeps fronts smooth.
+      for (const [i, c] of counts) {
+        const mult = TERRAIN[this.map.terrain[i]].mult;
+        if (this.rand() < ECON.spreadFrac * (0.6 + 0.4 * c) / Math.pow(mult, 1.3)) pick.push(i);
+      }
+      for (let k = pick.length - 1; k > 0; k--) { const j = Math.floor(this.rand() * (k + 1)); [pick[k], pick[j]] = [pick[j], pick[k]]; }
     }
-    cand.sort((p, q) => q[1] - p[1]);
-    const n = Math.min(cand.length, Math.max(1, Math.ceil(reach * ECON.spreadFrac)));
-    let sx = 0, sy = 0, taken = 0;
-    for (let k = 0; k < n; k++) {
-      const i = cand[k][0];
+    let sx = 0, sy = 0, taken = 0, spent = false;
+    for (const i of pick) {
       const cost = this.tileCost(i, a.target, a.attacker);
-      if (a.troops < cost) break;
+      if (a.troops < cost) { spent = true; break; }
       a.troops -= cost;
       if (def) def.troops -= Math.min(def.troops, def.troops / Math.max(1, def.tiles));
       this.setOwner(i, attacker.id);
       if (a.edge) a.edge.add(i);
+      if (def) this.clashes.push({ i, until: this.time + 0.6 });
       sx += i % this.w; sy += Math.floor(i / this.w); taken++;
       if (def && !def.alive) break;
     }
@@ -288,7 +302,7 @@ class Game {
       if (a.fx === undefined || Math.hypot(a.fx - x, a.fy - y) > 25) { a.fx = x; a.fy = y; }
       else { a.fx += (x - a.fx) * 0.15; a.fy += (y - a.fy) * 0.15; }
     }
-    if (taken < n || (def && !def.alive)) return false;
+    if (spent || (def && !def.alive)) return false;
     return a.troops >= ECON.tileCost;
   }
 
@@ -396,6 +410,7 @@ class Game {
     }
     this.boats = keep;
     this.wakes = this.wakes.filter(t => t.until > this.time);
+    if (this.clashes.length) this.clashes = this.clashes.filter(c => c.until > this.time);
   }
 
   step() {

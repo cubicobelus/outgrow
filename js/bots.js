@@ -5,15 +5,16 @@
 // picked once per bot, and the ranges of neighbouring levels overlap, so a sharp Medium can beat
 // a sluggish Hard. On average each level still beats the one below.
 //
-// Easy and Medium use the simple rules below. They make the classic mistakes: Easy sits near
-// its cap wasting growth, Medium attacks whenever it is nearly full, which leaves it emptied
-// and cheap to take.
+// Easy plays almost at random (`chaos`): each decision it rolls whether to act, what to hit and
+// how much to send. Medium uses the simple rules below and makes the classic mistakes: it
+// attacks whenever it is nearly full, which leaves it emptied and cheap to take.
 //   delay:      seconds before the first move [min, max]
 //   think:      average seconds between decisions [min, max]
 //   trigger:    take open land when troops reach this share of cap [min, max]
 //   share:      share of troops sent at open land; earlyShare in the first earlyTime seconds
 //               (overspending at the start is a classic mistake: low troops grow slowly)
 //   war:        attack a player once troops reach this share of cap; warShare is the share sent
+//   odds:       only attack a player whose whole army is at most 1/odds of ours (0 = attack blindly)
 //   aggression: chance to hit a neighbour even while open land is left
 //   idle:       chance to skip a decision
 //   pick:       'weakest' (fewest troops per tile) or 'random' neighbour
@@ -30,14 +31,14 @@
 //   snipe:       hit any neighbour whose land costs at most this many times open land
 //   lean:        how far each bot's trigger, share and safety may stray from these (0.3 = up to 30% either way)
 //   delay:       seconds before the first move [min, max]
-const EXPERT = { think: 0.2, openTrigger: 0.35, openShare: 0.5, openGuard: 0.5, safety: 0.6, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6] };
-const HARD =   { think: 0.42, openTrigger: 0.4, openShare: 0.45, openGuard: 0.3, safety: 0.75, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3] };
+const EXPERT = { think: 0.2, openTrigger: 0.42, openShare: 0.55, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6] };
+const HARD =   { think: 0.55, openTrigger: 0.45, openShare: 0.4, openGuard: 0.3, safety: 0.8, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3] };
 
 const BOT_TYPES = {
-  easy:   { label: 'Easy',   delay: [0, 5], think: [1.2, 3],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
-            war: [0.85, 1],    warShare: [0.15, 0.35], aggression: [0, 0.03], idle: 0.4, pick: 'random' },
+  easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.2, 3],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
+            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.4, pick: 'random' },
   medium: { label: 'Medium', delay: [0, 4], think: [0.6, 1.6], trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
-            war: [0.85, 0.97], warShare: [0.25, 0.45], aggression: [0, 0.08], idle: 0.1, pick: 'weakest' },
+            war: [0.85, 0.97], warShare: [0.25, 0.45], odds: [0.7, 1.1], aggression: [0, 0.08], idle: 0.1, pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
   expert: { label: 'Expert', patient: EXPERT },
 };
@@ -122,6 +123,7 @@ function botThink(game, p) {
   const P = personality(game, p, T);
   if (firstMove(game, p, T.delay)) return;
   p.nextThink = game.time + P.think * (0.6 + game.rand() * 0.8);
+  if (T.chaos) return chaosThink(game, p);
   const cap = maxTroops(p.tiles);
   if (game.attacks.some(a => a.attacker === p.id)) return;
   if (game.rand() < T.idle) return;
@@ -137,9 +139,21 @@ function botThink(game, p) {
     game.launchAttack(p, NEUTRAL, p.troops * (game.time < P.earlyTime ? P.earlyShare : P.share));
   } else if (!open && p.troops >= P.trigger * cap && tryBoat(game, p, P.share, target ? 0 : P.warShare)) {
     return;
-  } else if (target && p.troops >= (open ? P.trigger : P.war) * cap) {
+  } else if (target && p.troops >= (open ? P.trigger : P.war) * cap && p.troops >= P.odds * target.troops) {
     game.launchAttack(p, target.id, p.troops * P.warShare);
   }
+}
+
+// Easy: a coin toss each time. Acts only above a random fill level, sends a random share, and
+// picks open land or a random neighbour (or a boat) without weighing anything.
+function chaosThink(game, p) {
+  const r = () => game.rand();
+  if (r() < 0.35 || p.troops < (0.1 + r() * 0.8) * maxTroops(p.tiles)) return;
+  const share = 0.1 + r() * 0.7;
+  const near = neighbourIds(game, p);
+  if (near.length && r() < 0.25) { game.launchAttack(p, near[Math.floor(r() * near.length)].id, p.troops * share); return; }
+  if (game.touches(p.id, NEUTRAL)) { game.launchAttack(p, NEUTRAL, p.troops * share); return; }
+  if (r() < 0.3) tryBoat(game, p, share, share);
 }
 
 function patientThink(game, p, E) {

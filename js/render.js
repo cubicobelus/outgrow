@@ -108,23 +108,73 @@ class Renderer {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
-    for (const p of g.players) {
-      if (!p.alive || p.tiles < 12) continue;
-      const size = Math.max(10, Math.min(36, Math.sqrt(p.tiles) * v.scale * 0.35));
-      const x = v.x + (p.sumX / p.tiles + 0.5) * v.scale;
-      const y = v.y + (p.sumY / p.tiles + 0.5) * v.scale;
+    for (const l of this.labels()) {
+      const p = g.players[l.owner];
+      const size = Math.max(10, Math.min(36, Math.sqrt(l.size) * v.scale * 0.35)) * (l.main ? 1 : 0.8);
+      const x = v.x + (l.x + 0.5) * v.scale, y = v.y + (l.y + 0.5) * v.scale;
       ctx.font = `600 ${size}px system-ui, sans-serif`;
       ctx.lineWidth = size / 4;
       ctx.strokeStyle = 'rgba(0,0,0,0.6)';
       ctx.fillStyle = '#fff';
+      if (!l.main) { ctx.strokeText(p.name, x, y); ctx.fillText(p.name, x, y); continue; }
       ctx.strokeText(p.name, x, y - size * 0.55);
       ctx.fillText(p.name, x, y - size * 0.55);
       ctx.font = `${size * 0.8}px system-ui, sans-serif`;
       ctx.strokeText(fmt(p.troops), x, y + size * 0.45);
       ctx.fillText(fmt(p.troops), x, y + size * 0.45);
     }
+    this.drawClashes();
     this.drawAttacks();
     this.drawBoats();
+  }
+
+  // One label per separate piece of territory, at the tile deepest inside it, so a name always
+  // sits on its own land even with colonies across the map. The biggest piece also shows troops;
+  // pieces under 12 tiles get none. Recomputed at most every half second.
+  labels() {
+    const g = this.game, now = performance.now();
+    if (this.labelCache && now - this.labelTime < 500) return this.labelCache;
+    const n = g.w * g.h, comp = new Int32Array(n).fill(-1), dist = new Int32Array(n).fill(-1);
+    const pieces = [], stack = [], queue = [];
+    for (let s = 0; s < n; s++) {
+      const o = g.owner[s];
+      if (o === NEUTRAL || comp[s] >= 0) continue;
+      const id = pieces.length, piece = { owner: o, size: 0, best: s, depth: 0 };
+      pieces.push(piece);
+      comp[s] = id; stack.push(s);
+      while (stack.length) {
+        const i = stack.pop();
+        piece.size++;
+        if (g.isBorder(i)) { dist[i] = 0; queue.push(i); }
+        for (const j of g.neighbors(i)) if (comp[j] < 0 && g.owner[j] === o) { comp[j] = id; stack.push(j); }
+      }
+    }
+    // Distance inward from each piece's edge; the deepest tile is where its label goes.
+    for (let q = 0; q < queue.length; q++) {
+      const i = queue[q], piece = pieces[comp[i]];
+      if (dist[i] > piece.depth) { piece.depth = dist[i]; piece.best = i; }
+      for (const j of g.neighbors(i)) if (dist[j] < 0 && comp[j] === comp[i]) { dist[j] = dist[i] + 1; queue.push(j); }
+    }
+    const biggest = {};
+    for (const pc of pieces) if (!biggest[pc.owner] || pc.size > biggest[pc.owner].size) biggest[pc.owner] = pc;
+    this.labelCache = pieces.filter(pc => pc.size >= 12 && g.players[pc.owner].alive)
+      .map(pc => ({ owner: pc.owner, size: pc.size, x: pc.best % g.w, y: Math.floor(pc.best / g.w), main: biggest[pc.owner] === pc }));
+    this.labelTime = now;
+    return this.labelCache;
+  }
+
+  // Sparks where an attack is taking a player's tiles: a bright flash that fades out.
+  drawClashes() {
+    const g = this.game, ctx = this.ctx, v = this.view;
+    const r = Math.max(2 * this.dpr, v.scale * 0.9);
+    for (const c of g.clashes) {
+      const t = (c.until - g.time) / 0.6;
+      const x = v.x + (c.i % g.w + 0.5) * v.scale, y = v.y + (Math.floor(c.i / g.w) + 0.5) * v.scale;
+      ctx.fillStyle = `rgba(255, ${170 + 85 * t}, ${90 + 120 * t}, ${0.85 * t})`;
+      ctx.beginPath();
+      ctx.arc(x, y, r * (1.6 - 0.6 * t), 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 
   // A pill with the attack's troops where its front is moving. Attacks on the human pulse red.
@@ -174,14 +224,29 @@ class Renderer {
       const x0 = b.path[i] % g.w, y0 = Math.floor(b.path[i] / g.w), x1 = b.path[j] % g.w, y1 = Math.floor(b.path[j] / g.w);
       const x = v.x + (x0 + (x1 - x0) * f + 0.5) * v.scale, y = v.y + (y0 + (y1 - y0) * f + 0.5) * v.scale;
       const c = g.players[b.owner].color;
-      ctx.fillStyle = `rgb(${c})`;
-      ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 1.5 * k;
-      ctx.beginPath();
-      ctx.moveTo(x - 7 * k, y - 2 * k); ctx.lineTo(x + 7 * k, y - 2 * k); ctx.lineTo(x + 4 * k, y + 4 * k); ctx.lineTo(x - 4 * k, y + 4 * k);
-      ctx.closePath(); ctx.fill(); ctx.stroke();
-      this.pill(x, y - 13 * k, fmt(b.troops), c, b.target === g.human.id);
+      this.boatIcon(x, y, x1 >= x0 ? 1 : -1, c);
+      this.pill(x, y - 20 * k, fmt(b.troops), c, b.target === g.human.id);
     }
+  }
+
+  // A small sailing boat: dark hull, mast, and a sail in the owner's colour, facing its heading.
+  boatIcon(x, y, dir, color) {
+    const ctx = this.ctx, k = this.dpr;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(dir * k, k);
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.fillStyle = '#3b2a1e';
+    ctx.beginPath();
+    ctx.moveTo(-9, 2); ctx.lineTo(9, 2); ctx.lineTo(6, 6); ctx.lineTo(-6, 6); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, 2); ctx.lineTo(0, -10); ctx.stroke();
+    ctx.fillStyle = `rgb(${color})`;
+    ctx.beginPath(); ctx.moveTo(1, -10); ctx.lineTo(8, 0); ctx.lineTo(1, 0); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.restore();
   }
 
   pill(x, y, text, color, danger) {
