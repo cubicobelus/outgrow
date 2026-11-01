@@ -1,11 +1,16 @@
 // Bot decisions. Every level plays by the same rules as the human; higher levels
 // only decide better and react faster.
 //
+// Every bot below Expert gets a personality when the match starts: each [min, max] range is
+// picked once per bot, and the ranges of neighbouring levels overlap, so a sharp Medium can beat
+// a sluggish Hard. On average each level still beats the one below.
+//
 // Easy and Medium use the simple rules below. They make the classic mistakes: Easy sits near
 // its cap wasting growth, Medium attacks whenever it is nearly full, which leaves it emptied
 // and cheap to take.
-//   think:      seconds between decisions [min, max]
-//   trigger:    take open land when troops reach this share of cap [min, max], picked once per bot
+//   delay:      seconds before the first move [min, max]
+//   think:      average seconds between decisions [min, max]
+//   trigger:    take open land when troops reach this share of cap [min, max]
 //   share:      share of troops sent at open land; earlyShare in the first earlyTime seconds
 //               (overspending at the start is a classic mistake: low troops grow slowly)
 //   war:        attack a player once troops reach this share of cap; warShare is the share sent
@@ -23,12 +28,16 @@
 //                any neighbour has left
 //   minGain:     smallest attack on a player worth making, in tiles
 //   snipe:       hit any neighbour whose land costs at most this many times open land
-const EXPERT = { think: 0.2, openTrigger: 0.35, openShare: 0.5, openGuard: 0.5, safety: 0.6, minGain: 30, snipe: 1.5 };
-const HARD =   { think: 0.4, openTrigger: 0.45, openShare: 0.35, openGuard: 0.3, safety: 0.9, minGain: 30, snipe: 1.2 };
+//   lean:        how far each bot's trigger, share and safety may stray from these (0.3 = up to 30% either way)
+//   delay:       seconds before the first move [min, max]
+const EXPERT = { think: 0.2, openTrigger: 0.35, openShare: 0.5, openGuard: 0.5, safety: 0.6, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6] };
+const HARD =   { think: 0.42, openTrigger: 0.4, openShare: 0.45, openGuard: 0.3, safety: 0.75, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3] };
 
 const BOT_TYPES = {
-  easy:   { label: 'Easy',   think: [1.5, 3],   trigger: [0.6, 0.8],   share: 0.25, earlyShare: 0.75, earlyTime: 60, war: 0.97, warShare: 0.25, aggression: 0,    idle: 0.5, pick: 'random' },
-  medium: { label: 'Medium', think: [0.8, 1.5], trigger: [0.45, 0.55], share: 0.35, earlyShare: 0.6,  earlyTime: 45, war: 0.9,  warShare: 0.35, aggression: 0.03, idle: 0.1, pick: 'weakest' },
+  easy:   { label: 'Easy',   delay: [0, 5], think: [1.2, 3],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
+            war: [0.85, 1],    warShare: [0.15, 0.35], aggression: [0, 0.03], idle: 0.4, pick: 'random' },
+  medium: { label: 'Medium', delay: [0, 4], think: [0.6, 1.6], trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
+            war: [0.85, 0.97], warShare: [0.25, 0.45], aggression: [0, 0.08], idle: 0.1, pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
   expert: { label: 'Expert', patient: EXPERT },
 };
@@ -54,13 +63,32 @@ function estCost(game, p, q) {
     (1 + ECON.sizePenalty * p.tiles / game.landTiles);
 }
 
-// Each bot gets its own slight lean, so two bots of one level never move in lockstep.
-function lean(game, p) {
+const pick = (game, v) => (Array.isArray(v) ? v[0] + game.rand() * (v[1] - v[0]) : v);
+
+// A bot's personality, picked on its first decision: one value from every [min, max] range.
+function personality(game, p, T) {
+  if (!p.pers) {
+    p.pers = {};
+    for (const k in T) p.pers[k] = pick(game, T[k]);
+  }
+  return p.pers;
+}
+
+// Hard and Expert keep their tuned logic but each bot leans a little (Hard a lot more than Expert).
+function lean(game, p, E) {
   if (!p.lean) {
-    const j = () => 1 + (game.rand() - 0.5) * 0.2;
+    const j = () => 1 + (game.rand() * 2 - 1) * E.lean;
     p.lean = { trigger: j(), share: j(), safety: j() };
   }
   return p.lean;
+}
+
+// The first decision only sets when the bot will really start.
+function firstMove(game, p, delay) {
+  if (p.started) return false;
+  p.started = true;
+  p.nextThink = game.time + pick(game, delay);
+  return true;
 }
 
 // With no reachable land to take, cross the water: open land first, else (when `war` is set)
@@ -84,15 +112,16 @@ function plan(game, p, q, share, near) {
   const gain = Math.min(q.tiles, send / cost);
   let threat = Math.max(0, q.troops - gain * density(q));
   for (const r of near) if (r !== q) threat = Math.max(threat, r.troops);
-  return { send, gain, wipes: gain >= q.tiles, safe: threat > 0 ? (p.troops - send) / threat : Infinity };
+  return { send, gain, cost, wipes: gain >= q.tiles, safe: threat > 0 ? (p.troops - send) / threat : Infinity };
 }
 
 function botThink(game, p) {
   if (game.time < p.nextThink) return;
   const T = BOT_TYPES[p.botType];
   if (T.patient) return patientThink(game, p, T.patient);
-  p.nextThink = game.time + T.think[0] + game.rand() * (T.think[1] - T.think[0]);
-  if (p.trigger === undefined) p.trigger = T.trigger[0] + game.rand() * (T.trigger[1] - T.trigger[0]);
+  const P = personality(game, p, T);
+  if (firstMove(game, p, T.delay)) return;
+  p.nextThink = game.time + P.think * (0.6 + game.rand() * 0.8);
   const cap = maxTroops(p.tiles);
   if (game.attacks.some(a => a.attacker === p.id)) return;
   if (game.rand() < T.idle) return;
@@ -104,17 +133,18 @@ function botThink(game, p) {
       : near.reduce((a, b) => (density(b) < density(a) ? b : a));
   }
   const open = game.touches(p.id, NEUTRAL);
-  if (open && p.troops >= p.trigger * cap && !(target && game.rand() < T.aggression)) {
-    game.launchAttack(p, NEUTRAL, p.troops * (game.time < T.earlyTime ? T.earlyShare : T.share));
-  } else if (!open && p.troops >= p.trigger * cap && tryBoat(game, p, T.share, target ? 0 : T.warShare)) {
+  if (open && p.troops >= P.trigger * cap && !(target && game.rand() < P.aggression)) {
+    game.launchAttack(p, NEUTRAL, p.troops * (game.time < P.earlyTime ? P.earlyShare : P.share));
+  } else if (!open && p.troops >= P.trigger * cap && tryBoat(game, p, P.share, target ? 0 : P.warShare)) {
     return;
-  } else if (target && p.troops >= (open ? p.trigger : T.war) * cap) {
-    game.launchAttack(p, target.id, p.troops * T.warShare);
+  } else if (target && p.troops >= (open ? P.trigger : P.war) * cap) {
+    game.launchAttack(p, target.id, p.troops * P.warShare);
   }
 }
 
 function patientThink(game, p, E) {
-  const L = lean(game, p);
+  if (firstMove(game, p, E.delay)) return;
+  const L = lean(game, p, E);
   p.nextThink = game.time + E.think * (0.7 + game.rand() * 0.6);
   const cap = maxTroops(p.tiles);
   const busy = target => game.attacks.some(a => a.attacker === p.id && a.target === target);
@@ -147,7 +177,7 @@ function patientThink(game, p, E) {
       const pl = plan(game, p, q, share, near);
       if (pl.safe < E.safety * L.safety || pl.gain < E.minGain) continue;
       const score = pl.gain * (pl.wipes ? 2 : 1);
-      if (score > bestScore) { best = [q, Math.min(pl.send, q.tiles * estCost(game, p, q) * 1.2)]; bestScore = score; }
+      if (score > bestScore) { best = [q, Math.min(pl.send, q.tiles * pl.cost * 1.2)]; bestScore = score; }
     }
   }
   if (best) game.launchAttack(p, best[0].id, best[1]);

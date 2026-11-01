@@ -135,11 +135,12 @@ class Game {
     }
   }
 
-  // A random valid spot. With `smart`, compares many and keeps the one with the most room:
-  // far from other starts and with plenty of cheap plains nearby.
-  findStart(p, smart) {
+  // A random valid spot. With `looks` above 1, compares that many and keeps the one with the most
+  // room: far from other starts and with plenty of cheap plains nearby.
+  findStart(p, looks = 1) {
+    const smart = looks > 1;
     let best = null, bestScore = -1, found = 0;
-    for (let tries = 0; tries < 3000 && found < (smart ? 60 : 1); tries++) {
+    for (let tries = 0; tries < 3000 && found < looks; tries++) {
       const x = Math.floor(this.rand() * this.w), y = Math.floor(this.rand() * this.h);
       if (!this.canSpawn(p, x, y, tries < 2500 ? ECON.spawnGap : 4)) continue;
       found++;
@@ -160,7 +161,7 @@ class Game {
   }
 
   placeBot(p) {
-    const spot = this.findStart(p, p.botType === 'hard' || p.botType === 'expert');
+    const spot = this.findStart(p, { hard: 10, expert: 60 }[p.botType] || 1);
     if (spot) this.spawn(p, spot[0], spot[1], 4);
     else p.alive = false;
   }
@@ -174,7 +175,7 @@ class Game {
     for (const p of this.players) {
       if (!p.alive || p.spawned) continue;
       if (p.isBot) this.placeBot(p);
-      else { const spot = this.findStart(p, false); if (spot) this.spawn(p, spot[0], spot[1], 4); }
+      else { const spot = this.findStart(p); if (spot) this.spawn(p, spot[0], spot[1], 4); }
     }
     this.phase = 'play';
     this.time = 0;
