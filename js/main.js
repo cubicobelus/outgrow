@@ -205,6 +205,7 @@ el('howBtn').addEventListener('click', () => { howFrom = 'menu'; showScreen('how
 el('pauseHow').addEventListener('click', () => { howFrom = 'pause'; showScreen('how'); });
 el('howBack').addEventListener('click', () => showScreen(howFrom));
 el('pauseBtn').addEventListener('click', () => setPaused(true));
+el('pauseToggle').addEventListener('click', () => { if (!ended) paused = !paused; });
 el('resume').addEventListener('click', () => setPaused(false));
 el('restart').addEventListener('click', startMatch);
 el('quit').addEventListener('click', toMenu);
@@ -296,6 +297,8 @@ function frame(now) {
   if (msgTimer > 0) { msgTimer -= dt; if (msgTimer <= 0) showMsg('', 0); }
   const inGame = mode === 'game';
   el('paused').hidden = !(inGame && paused && el('pause').hidden && el('how').hidden);
+  el('pauseToggle').textContent = paused ? 'Resume' : 'Pause';
+  el('pauseToggle').classList.toggle('on', paused);
   el('start').hidden = !(inGame && game.phase === 'start');
   if (inGame && game.phase === 'start') {
     el('start').textContent = `${game.human.spawned ? 'Click to move your start' : 'Click open land to place your start'}: ${Math.ceil(game.startLeft)}s`;

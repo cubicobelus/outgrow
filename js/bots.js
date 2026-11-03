@@ -32,8 +32,8 @@
 //   lean:        how far each bot's trigger, share and safety may stray from these (0.3 = up to 30% either way)
 //   delay:       seconds before the first move [min, max]
 //   chip:        also consider small 15% attacks when sitting near the cap
-const EXPERT = { think: 0.15, openTrigger: 0.42, openShare: 0.55, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true };
-const HARD =   { think: 0.7, openTrigger: 0.48, openShare: 0.33, openGuard: 0.35, safety: 1.0, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false };
+const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.45, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true };
+const HARD =   { think: 0.7, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35, safety: 1.1, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false };
 
 const BOT_TYPES = {
   easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.8, 4],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
