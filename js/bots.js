@@ -49,13 +49,13 @@
 //   noise:       how far estimates are off: each option's score is scaled by 1 plus or minus this (0 = perfect)
 //   reach:       look for players this many open tiles away (not touching yet) and thrust at ones worth hitting; 0 = only neighbours
 const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.45, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true, reach: 10, exact: true, noise: 0, crowd: 0.5, rival: 0.8, cleanup: 0.04, attackBias: 0.5, fronts: 4, grudge: 0.1, capAt: 0.88, reserve: 0.3, patience: 2, chipFrom: 0.5, minX: 0.3, horizon: 25, netMin: 0.5 };
-const HARD =   { think: 0.7, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35, safety: 1.1, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false, reach: 4, exact: false, noise: 0.35, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 2, grudge: 0.6, capAt: 1.01, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0, horizon: 0, netMin: 0.5 };
+const HARD =   { think: 0.4, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35, safety: 0.7, minGain: 10, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false, reach: 4, exact: false, noise: 0.35, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 3, grudge: 0.6, capAt: 0.88, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0, horizon: 0, netMin: 0.5 };
 
 const BOT_TYPES = {
   easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.8, 4],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
             war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.6, hit: 0.12, pick: 'random' },
   medium: { label: 'Medium', delay: [0, 4], think: [0.6, 1.6], trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
-            war: [0.85, 0.97], warShare: [0.25, 0.45], odds: [0.7, 1.1], aggression: [0, 0.08], idle: 0.1, fronts: [1, 2.99], pick: 'weakest' },
+            war: [0.77, 0.93], warShare: [0.25, 0.45], odds: [0.4, 0.7], aggression: [0, 0.08], idle: 0.1, fronts: [1, 2.99], pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
   expert: { label: 'Expert', patient: EXPERT },
 };
@@ -179,7 +179,7 @@ function botThink(game, p) {
     game.launchAttack(p, NEUTRAL, p.troops * (game.time < P.earlyTime ? P.earlyShare : P.share));
   } else if (!open && p.troops >= P.trigger * cap && tryBoat(game, p, P.share, target ? 0 : P.warShare)) {
     return;
-  } else if (target && p.troops >= (open ? P.trigger : P.war) * cap && p.troops >= P.odds * target.troops) {
+  } else if (target && p.troops >= (open ? P.trigger : P.war) * cap && p.troops >= (p.troops >= 0.9 * cap ? Math.min(P.odds, 0.5) : P.odds) * target.troops) {
     game.launchAttack(p, target.id, p.troops * P.warShare);
   }
 }
