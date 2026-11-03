@@ -6,6 +6,7 @@ const ECON = {
   capExp: 0.75,        // below 1, so each extra tile adds less cap
   growthRate: 0.18,    // overall speed of troop growth
   growthShape: 1.5,    // growth peaks at troops = cap / (1 + growthShape), about 40% of cap
+  growthSteep: 1.3,    // 1 = the plain hump; higher keeps the same peak but narrows it, so being off the sweet spot costs more
   tileCost: 20,        // troops spent to take one open plains tile
   defenseMult: 1.2,    // extra cost per owned tile = defenseMult * defender troops per tile * terrain mult
   sizePenalty: 0,      // attacking players costs x(1 + sizePenalty * attacker's share of all land)
@@ -37,9 +38,14 @@ function maxTroops(tiles) {
   return ECON.capBase + ECON.capPerTile * Math.pow(tiles, ECON.capExp);
 }
 
-// Hump shaped: slow when nearly empty, fastest around 40% of cap, zero at cap.
+// Hump shaped: slow when nearly empty, fastest around 40% of cap, zero at cap. growthSteep raises the
+// hump to a power relative to its peak, so the peak keeps its place and height and only the sides drop.
 function growthPerSec(troops, cap) {
   if (troops >= cap) return 0;
   const t = Math.max(troops, cap * 0.01);
-  return ECON.growthRate * t * Math.pow(1 - troops / cap, ECON.growthShape);
+  const plain = ECON.growthRate * t * Math.pow(1 - troops / cap, ECON.growthShape);
+  if (ECON.growthSteep === 1) return plain;
+  const at = 1 / (1 + ECON.growthShape);
+  const peak = ECON.growthRate * at * cap * Math.pow(1 - at, ECON.growthShape);
+  return peak * Math.pow(plain / peak, ECON.growthSteep);
 }
