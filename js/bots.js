@@ -36,6 +36,7 @@
 //   exact:       price targets from the real tiles on the front instead of an average, and weigh land, gaps and sea together
 //   fronts:      most attacks it runs at once (the game allows 4)
 //   patience:    below the growth sweet spot (40% of the cap) spending troops costs growth, so the safety margin grows by this times how far below it we are (2 = triple at an empty army)
+//   horizon:     seconds of growth an attack is charged for: sending troops from below the growth peak costs the growth they would have produced, and an attack whose lost growth (in tiles at the front's price) is over `netMin` of its gain is not worth it unless it wipes the target out or the target is small
 //   minX:        no ordinary attack below this share of the cap (wait a few seconds and strike with more); wipe-outs and small players are exempt
 //   chipFrom:    small attacks (under 30% of troops) wait until troops reach this share of the cap, unless they wipe the target out or it is a small player
 //   reserve:     a second or later front must leave at least this share of the cap in troops
@@ -47,8 +48,8 @@
 //   crowd:       each boat already heading for a target scales its appeal by this (lower = avoids crowds)
 //   noise:       how far estimates are off: each option's score is scaled by 1 plus or minus this (0 = perfect)
 //   reach:       look for players this many open tiles away (not touching yet) and thrust at ones worth hitting; 0 = only neighbours
-const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.45, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true, reach: 10, exact: true, noise: 0, crowd: 0.5, rival: 0.8, cleanup: 0.04, attackBias: 0.5, fronts: 4, grudge: 0.1, capAt: 0.88, reserve: 0.3, patience: 2, chipFrom: 0.5, minX: 0.3 };
-const HARD =   { think: 0.7, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35, safety: 1.1, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false, reach: 4, exact: false, noise: 0.35, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 2, grudge: 0.6, capAt: 1.01, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0 };
+const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.45, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true, reach: 10, exact: true, noise: 0, crowd: 0.5, rival: 0.8, cleanup: 0.04, attackBias: 0.5, fronts: 4, grudge: 0.1, capAt: 0.88, reserve: 0.3, patience: 2, chipFrom: 0.5, minX: 0.3, horizon: 25, netMin: 0.5 };
+const HARD =   { think: 0.7, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35, safety: 1.1, minGain: 30, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false, reach: 4, exact: false, noise: 0.35, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 2, grudge: 0.6, capAt: 1.01, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0, horizon: 0, netMin: 0.5 };
 
 const BOT_TYPES = {
   easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.8, 4],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
@@ -217,7 +218,10 @@ function patientThink(game, p, E) {
   for (const q of near) {
     const cost = estCost(game, p, q);
     if (busy(q.id) || cost > E.snipe * openCost) continue;
-    const send = Math.min(p.troops - guard, wipeCost(game, p, q) * 1.2);
+    const need = wipeCost(game, p, q) * 1.2, send = Math.min(p.troops - guard, need);
+    // A snipe that does not finish the target must be worth the growth the troops would have produced.
+    const lost = E.horizon ? Math.max(0, growthPerSec(p.troops, cap) - growthPerSec(p.troops - send, cap)) * E.horizon : 0;
+    if (send < need && lost > send * E.netMin) continue;
     if (send > cost * 10) game.launchAttack(p, q.id, send);
   }
 
@@ -227,6 +231,8 @@ function patientThink(game, p, E) {
   // Troop growth peaks at 40% of the cap. Below it, troops spent now are growth lost, so a patient bot
   // asks for a bigger safety margin and holds back small attacks until it has recovered.
   const x = p.troops / cap, deficit = Math.max(0, 0.4 - x) / 0.4;
+  // Troops of growth given up over the next `horizon` seconds by sending `send` now (0 above the peak, where sending speeds growth up).
+  const lostGrowth = send => (E.horizon ? Math.max(0, growthPerSec(p.troops, cap) - growthPerSec(p.troops - send, cap)) * E.horizon : 0);
   const choose = (targets, relaxed) => {
     const out = [];
     for (const q of targets) {
@@ -242,6 +248,7 @@ function patientThink(game, p, E) {
         const pl = plan(game, p, q, share, near.includes(q) ? near : [...near, q], tile);
         const small = q.tiles <= E.cleanup * game.landTiles;
         if (!relaxed && !pl.wipes && !small && (x < E.minX || (share < 0.3 && x < E.chipFrom))) continue;
+        if (!relaxed && !pl.wipes && !small && lostGrowth(pl.send) / (tile || estCost(game, p, q)) > pl.gain * E.netMin) continue;
         if (pl.safe < E.safety * L.safety * (relaxed ? 0.6 : 1 + E.patience * deficit) || (pl.gain < E.minGain && !pl.wipes && !relaxed && q.tiles > E.cleanup * game.landTiles)) continue;
         // Land gained, doubled for a wipe-out, and more for hitting a rival that is a real contender.
         const score = pl.gain * (pl.wipes ? 2 : 1) * (1 + E.rival * q.tiles / top) * (1 + E.grudge * Math.min(1, game.grudge(p, q.id) / (0.25 * cap))) * fuzz;
