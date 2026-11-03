@@ -21,6 +21,7 @@ const ECON = {
   minIsland: 40,       // smaller islands are sunk when the map is made
   boatSpeed: 12,       // tiles per second
   maxBoats: 3,         // boats at sea per player
+  maxFronts: 4,        // attacks (fronts) one player can have running at once
 };
 
 // Terrain ids index this table. Water cannot be taken. mult raises the cost of a tile and

@@ -19,6 +19,7 @@ class Game {
     this.attacks = [];
     this.boats = [];
     this.clashes = []; // player tiles just taken, flashed on the map
+    this.feed = [];    // who was taken out by whom, for the kill feed: { victim, killer, time }
     this.wakes = []; // routes of boats that just landed, kept briefly so their trail can fade
     this.eliminated = []; // players in the order they fell
     this.dirty = new Set();
@@ -78,7 +79,7 @@ class Game {
     if (old !== NEUTRAL) {
       const p = this.players[old];
       p.tiles--; p.sumX -= x; p.sumY -= y; p.border.delete(i);
-      if (p.tiles <= 0) this.eliminate(p);
+      if (p.tiles <= 0) this.eliminate(p, pid);
     }
     this.owner[i] = pid;
     if (pid !== NEUTRAL) {
@@ -90,9 +91,11 @@ class Game {
     for (const j of this.neighbors(i)) { this.refreshBorder(j); this.dirty.add(j); }
   }
 
-  eliminate(p) {
+  eliminate(p, by) {
     p.alive = false;
     this.eliminated.push(p);
+    this.feed.push({ victim: p.name, killer: by !== undefined && by !== NEUTRAL ? this.players[by].name : null, time: this.time });
+    if (this.feed.length > 20) this.feed.shift();
     this.boats = this.boats.filter(b => b.owner !== p.id);
     p.troops = 0;
     this.attacks = this.attacks.filter(a => a.attacker !== p.id);
@@ -215,6 +218,34 @@ class Game {
     return counts;
   }
 
+  // Players within `maxDepth` tiles of p across open land that p does not touch yet: for each, how many
+  // open tiles lie in between (`depth`, 1 = a single tile of gap) and the player's tile nearest the way in.
+  gapTo(p, maxDepth, cap = 6000) {
+    const seen = new Set(), out = new Map();
+    let frontier = [];
+    for (const b of p.border) for (const j of this.neighbors(b)) {
+      if (this.owner[j] === NEUTRAL && this.isLand(j) && !seen.has(j)) { seen.add(j); frontier.push(j); }
+    }
+    for (let d = 1; d <= maxDepth && frontier.length && seen.size < cap; d++) {
+      const next = [];
+      for (const i of frontier) for (const j of this.neighbors(i)) {
+        const o = this.owner[j];
+        if (o === NEUTRAL) { if (this.isLand(j) && !seen.has(j)) { seen.add(j); next.push(j); } }
+        else if (o !== p.id && !out.has(o)) out.set(o, { id: o, depth: d, tile: j });
+      }
+      frontier = next;
+    }
+    return out;
+  }
+
+  // How many troops `id` has sent at p lately (halves every 2 minutes).
+  grudge(p, id) {
+    const g = p.grudge && p.grudge[id];
+    return g ? g.v * Math.pow(0.5, (this.time - g.t) / 120) : 0;
+  }
+
+  frontCount(id) { return this.attacks.filter(a => a.attacker === id).length; }
+
   touches(attacker, target) {
     for (const b of this.players[attacker].border) {
       for (const j of this.neighbors(b)) if (this.owner[j] === target && this.isLand(j)) return true;
@@ -222,11 +253,25 @@ class Game {
     return false;
   }
 
-  launchAttack(p, target, troops) {
+  // `aim` ({ x, y, target }) makes an open-land attack a thrust: it only takes the open tiles nearest
+  // that point and stops as soon as the attacker touches the player `target`.
+  launchAttack(p, target, troops, aim) {
     troops = Math.min(troops, p.troops);
     if (!p.alive || target === p.id || troops < 1) return false;
     if (!this.touches(p.id, target)) return false;
+    // At most ECON.maxFronts attacks at once; more troops at a target already being attacked just join it.
+    if (this.attacks.filter(a => a.attacker === p.id).length >= ECON.maxFronts) {
+      const joins = !aim && this.attacks.some(a => a.attacker === p.id && a.target === target && !a.edge && !a.aim);
+      const counter = this.attacks.find(a => a.attacker === target && a.target === p.id);
+      if (!joins && !(counter && troops <= counter.troops)) return false;
+    }
     p.troops -= troops;
+    // The target remembers who sent troops at it (a grudge that fades with a 2 minute half-life).
+    if (target !== NEUTRAL) {
+      const t = this.players[target], old = t.grudge && t.grudge[p.id];
+      t.grudge = t.grudge || {};
+      t.grudge[p.id] = { v: (old ? old.v * Math.pow(0.5, (this.time - old.t) / 120) : 0) + troops, t: this.time };
+    }
     // Opposing attacks between the same two players cancel out first.
     const counter = this.attacks.find(a => a.attacker === target && a.target === p.id);
     if (counter) {
@@ -235,9 +280,9 @@ class Game {
       if (counter.troops <= 0) this.attacks.splice(this.attacks.indexOf(counter), 1);
       if (troops <= 0) return true;
     }
-    const same = this.attacks.find(a => a.attacker === p.id && a.target === target && !a.edge);
+    const same = aim ? null : this.attacks.find(a => a.attacker === p.id && a.target === target && !a.edge && !a.aim);
     if (same) same.troops += troops;
-    else this.attacks.push({ attacker: p.id, target, troops });
+    else this.attacks.push({ attacker: p.id, target, troops, aim });
     return true;
   }
 
@@ -262,8 +307,25 @@ class Game {
   stepAttack(a) {
     const attacker = this.players[a.attacker];
     const def = a.target === NEUTRAL ? null : this.players[a.target];
+    if (a.aim && this.touches(a.attacker, a.aim.target)) return false;
     const counts = this.frontOf(a);
     if (counts.size === 0) return false;
+    if (a.aim) {
+      // A thrust: keep only the front tiles nearest the aim point.
+      const dist = new Map();
+      let best = Infinity;
+      for (const i of counts.keys()) {
+        const d = Math.hypot(i % this.w - a.aim.x, Math.floor(i / this.w) - a.aim.y);
+        dist.set(i, d);
+        if (d < best) best = d;
+      }
+      for (const [i, d] of dist) if (d > best + 3.5) counts.delete(i);
+    }
+    // A big force for the front it pushes against moves faster, a thin one slower: speed follows how
+    // many front-widths of tiles the troops can pay for (1 = the base speed).
+    let avg = 0, sample = 0;
+    for (const i of counts.keys()) { avg += this.tileCost(i, a.target, a.attacker); if (++sample >= 24) break; }
+    const speed = Math.max(0.5, Math.min(2.5, 0.6 + 0.4 * Math.sqrt(a.troops / (counts.size * (avg / sample)))));
     let pick = [];
     if (def) {
       // Against a player the front moves as a line: the most wrapped tiles fall first, so gaps
@@ -271,7 +333,7 @@ class Game {
       let sumMult = 0;
       const cand = [];
       for (const [i, c] of counts) { sumMult += TERRAIN[this.map.terrain[i]].mult; cand.push([i, c + this.rand() * 0.6]); }
-      const n = Math.max(1, Math.round(cand.length * ECON.spreadFrac * 1.15 / Math.pow(sumMult / cand.length, 1.3) + this.rand() - 0.5));
+      const n = Math.max(1, Math.round(cand.length * ECON.spreadFrac * speed * 1.15 / Math.pow(sumMult / cand.length, 1.3) + this.rand() - 0.5));
       cand.sort((p, q) => q[1] - p[1]);
       pick = cand.slice(0, n).map(x => x[0]);
     } else {
@@ -280,7 +342,7 @@ class Game {
       // Tiles already wrapped by the attacker fall sooner, which keeps fronts smooth.
       for (const [i, c] of counts) {
         const mult = TERRAIN[this.map.terrain[i]].mult;
-        if (this.rand() < ECON.spreadFrac * (0.6 + 0.4 * c) / Math.pow(mult, 1.3)) pick.push(i);
+        if (this.rand() < ECON.spreadFrac * speed * (0.6 + 0.4 * c) / Math.pow(mult, 1.3)) pick.push(i);
       }
       for (let k = pick.length - 1; k > 0; k--) { const j = Math.floor(this.rand() * (k + 1)); [pick[k], pick[j]] = [pick[j], pick[k]]; }
     }
@@ -416,13 +478,18 @@ class Game {
   step() {
     if (this.phase === 'start') return this.stepStart();
     this.time += TICK;
-    for (const p of this.players) {
+    // Players and attacks are visited from a random starting point each tick, so nobody gains from
+    // being first in the list (two equal bots otherwise split about 4 to 1).
+    const n = this.players.length, off = Math.floor(this.rand() * n);
+    for (let k = 0; k < n; k++) {
+      const p = this.players[(k + off) % n];
       if (!p.alive || !p.spawned) continue;
       p.troops += growthPerSec(p.troops, maxTroops(p.tiles)) * TICK;
       if (p.isBot) botThink(this, p);
     }
-    const keep = [];
-    for (const a of this.attacks) {
+    const keep = [], list = this.attacks, m = list.length, offA = m ? Math.floor(this.rand() * m) : 0;
+    for (let k = 0; k < m; k++) {
+      const a = list[(k + offA) % m];
       if (this.stepAttack(a)) keep.push(a);
       else if (this.players[a.attacker].alive) this.players[a.attacker].troops += a.troops;
     }

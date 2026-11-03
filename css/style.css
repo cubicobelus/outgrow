@@ -43,7 +43,13 @@ button.on { background: var(--gold); border-color: var(--gold); color: #141414; 
 #side button, #bottom button, #zoomctl button { pointer-events: auto; }
 #zoomctl { bottom: 10px; left: 10px; display: flex; gap: 4px; padding: 6px; }
 #zoomctl button { min-width: 34px; font-weight: 700; }
-body.in-menu #zoomctl { display: none; }
+body.in-menu #zoomctl, body.in-menu #feed { display: none; }
+#feed { position: fixed; left: 10px; bottom: 62px; display: flex; flex-direction: column; gap: 4px; pointer-events: none; }
+#tip { position: fixed; z-index: 6; pointer-events: none; background: rgba(10, 14, 22, 0.92); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 8px; padding: 8px 12px; font-size: 13px; line-height: 1.5; font-variant-numeric: tabular-nums; min-width: 190px; }
+#tip b { font-size: 14px; }
+#tip .r { display: flex; justify-content: space-between; gap: 16px; }
+#tip .r span:first-child { color: var(--dim); }
+#feed div { background: var(--panel); border-radius: 6px; padding: 4px 10px; font-size: 13px; }
 
 #side { top: 10px; right: 10px; display: flex; flex-direction: column; gap: 8px; }
 .side-row { display: flex; justify-content: space-between; gap: 8px; }
@@ -93,6 +99,7 @@ button.ghost:hover { background: var(--btn); }
 @media (max-width: 700px) {
   #side { top: auto; bottom: 64px; right: 10px; }
   #zoomctl { bottom: 64px; }
+  #feed { bottom: 116px; }
   #board { display: none; }
   #bottom { justify-content: center; width: calc(100% - 20px); gap: 6px; padding: 8px; }
   #bottom .label { display: none; }

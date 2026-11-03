@@ -107,7 +107,7 @@ function clickTile(clientX, clientY) {
   const troops = me.troops * share;
   // Land that connects to ours is attacked over land; anything else needs a boat.
   if (game.reachableByLand(me, i)) {
-    if (!game.launchAttack(me, target, troops)) showMsg('Not enough troops to attack.', 2);
+    if (!game.launchAttack(me, target, troops)) showMsg(game.frontCount(me.id) >= ECON.maxFronts ? `All ${ECON.maxFronts} fronts are busy.` : 'Not enough troops to attack.', 2);
     return;
   }
   if (game.boats.filter(b => b.owner === me.id).length >= ECON.maxBoats) {
@@ -163,9 +163,12 @@ el('zoomIn').addEventListener('click', () => renderer.zoomCentre(1.5));
 el('zoomOut').addEventListener('click', () => renderer.zoomCentre(1 / 1.5));
 el('zoomFit').addEventListener('click', () => renderer.fitAll());
 
+let mouse = { x: 0, y: 0, tile: -1 };
+canvas.addEventListener('mouseleave', () => { mouse.tile = -1; });
 canvas.addEventListener('mousemove', e => {
   if (mode !== 'game') return;
   const i = renderer.tileAt(e.clientX, e.clientY);
+  mouse = { x: e.clientX, y: e.clientY, tile: i };
   if (i < 0) { el('hover').textContent = ''; return; }
   const o = game.owner[i];
   const terr = TERRAIN[game.map.terrain[i]].name;
@@ -223,6 +226,7 @@ function updateHud() {
   el('troops').textContent = `${fmt(me.troops)} / ${fmt(cap)}`;
   el('fill').style.width = `${Math.min(100, me.troops / cap * 100)}%`;
   el('growth').textContent = `+${fmt(growthPerSec(me.troops, cap))}/s`;
+  el('fronts').textContent = `${game.frontCount(me.id)} / ${ECON.maxFronts}`;
   el('land').textContent = `${me.tiles} tiles (${(me.tiles / game.landTiles * 100).toFixed(1)}%)`;
   const left = Math.max(0, Math.ceil(ECON.matchTime - game.time));
   el('clock').textContent = mmss(left);
@@ -234,10 +238,30 @@ function updateHud() {
     game.boats.filter(b => b.target === me.id).map(b => `<div class="in">${name(b.owner)} boat incoming: ${fmt(b.troops)}</div>`).join('') +
     game.attacks.filter(a => a.attacker === me.id).map(a => `<div class="out">Attacking ${name(a.target)}: ${fmt(a.troops)}</div>`).join('') +
     game.boats.filter(b => b.owner === me.id).map(b => `<div class="out">Boat to ${name(b.target)}: ${fmt(b.troops)}</div>`).join('');
+  el('feed').innerHTML = game.feed.filter(f => game.time - f.time < 8).map(f =>
+    `<div style="opacity:${Math.min(1, (8 - (game.time - f.time)) / 2).toFixed(2)}"><b>${f.victim}</b> was taken out${f.killer ? ` by ${f.killer}` : ''}</div>`).join('');
   const ranked = game.players.filter(p => p.alive && p.spawned).sort((a, b) => b.tiles - a.tiles).slice(0, 8);
   el('board').innerHTML = ranked.map(p =>
     `<tr${p === me ? ' class="me"' : ''}><td><span class="dot" style="background:rgb(${p.color})"></span>${p.name}</td>` +
     `<td>${(p.tiles / game.landTiles * 100).toFixed(1)}%</td><td>${fmt(p.troops)}</td></tr>`).join('');
+}
+
+// Stats for the player under the mouse (a temporary aid): troops, cap, growth, land, fronts.
+function updateTip() {
+  const tip = el('tip'), o = mouse.tile >= 0 ? game.owner[mouse.tile] : NEUTRAL;
+  if (mode !== 'game' || o === NEUTRAL || !game.players[o].alive) { tip.hidden = true; return; }
+  const q = game.players[o], cap = maxTroops(q.tiles);
+  const row = (k, v) => `<div class="r"><span>${k}</span><span>${v}</span></div>`;
+  tip.innerHTML = `<b>${q.name}</b>` + (q.isBot ? ` <span style="color:var(--dim)">${LEVELS.find(l => l[0] === q.botType)[1]}</span>` : '') +
+    row('Troops', `${fmt(q.troops)} / ${fmt(cap)}`) +
+    row('Growth', `+${fmt(growthPerSec(q.troops, cap))}/s`) +
+    row('Land', `${q.tiles} (${(q.tiles / game.landTiles * 100).toFixed(1)}%)`) +
+    row('Troops per tile', (q.troops / Math.max(1, q.tiles)).toFixed(1)) +
+    row('Fronts', `${game.frontCount(q.id)} / ${ECON.maxFronts}`);
+  tip.hidden = false;
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.min(innerWidth - w - 8, mouse.x + 16) + 'px';
+  tip.style.top = Math.min(innerHeight - h - 8, mouse.y + 16) + 'px';
 }
 
 // Rank among everyone: the living by land, then the fallen in reverse order of elimination.
@@ -304,7 +328,7 @@ function frame(now) {
     el('start').textContent = `${game.human.spawned ? 'Click to move your start' : 'Click open land to place your start'}: ${Math.ceil(game.startLeft)}s`;
   }
   renderer.draw(dt);
-  if (inGame) updateHud();
+  if (inGame) { updateHud(); updateTip(); } else el('tip').hidden = true;
   requestAnimationFrame(frame);
 }
 

@@ -15,6 +15,7 @@
   <div class="bar" title="Growth is fastest near the tick"><div id="fill"></div><div class="mark"></div></div>
   <div class="row"><span class="label">Growth</span><span id="growth"></span></div>
   <div class="row"><span class="label">Land</span><span id="land"></span></div>
+  <div class="row"><span class="label">Fronts</span><span id="fronts"></span></div>
   <div id="attacks"></div>
 </div>
 
@@ -33,6 +34,9 @@
   <span id="sending"></span>
   <span id="hover"></span>
 </div>
+
+<div id="feed"></div>
+<div id="tip" hidden></div>
 
 <div id="zoomctl" class="panel">
   <button id="zoomIn" title="Zoom in (+)">+</button>
@@ -65,7 +69,7 @@
     <ul>
       <li><b>Start:</b> in the first few seconds, click open land to place your start. Click again to move it. Starts cannot sit right next to each other.</li>
       <li><b>Troops</b> grow on their own up to your <b>cap</b>, and more land means a higher cap. Growth is fastest around the tick on the troop bar and stops when you are full.</li>
-      <li><b>Attack:</b> click open land or a neighbour to send the chosen share of your troops (keys <b>1</b> to <b>5</b>). The attack spreads along your border until its troops run out, and its troops show on the map. Click land across the water to send a boat.</li>
+      <li><b>Attack:</b> click open land or a neighbour to send the chosen share of your troops (keys <b>1</b> to <b>5</b>). The attack spreads along your border until its troops run out, and its troops show on the map. You can run up to <b>4 attacks (fronts)</b> at once, and so can the bots. Click land across the water to send a boat.</li>
       <li>Plains are cheapest and fastest; forest, hills and mountains cost more, slow attacks down and help defenders. Open land next to a rival costs extra. Taking someone's land costs more the more troops they hold, so attacking first usually loses troops. Expand fast, do not send too much early, and strike when you clearly outnumber a neighbour.</li>
       <li><b>Win</b> by holding 80% of the land, outlasting everyone, or holding the most land when time runs out.</li>
       <li><b>Scroll</b> or pinch to zoom (or <b>+</b> and <b>&minus;</b>, <b>0</b> shows the whole map), drag or use the arrow keys to move the map. Panels never block the map: drag it clear or click straight through them. <b>Space</b> pauses, <b>Esc</b> opens the menu.</li>
