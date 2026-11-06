@@ -12,7 +12,7 @@ const MAX_BOTS = 15;
 
 const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
-const setup = { easy: 3, medium: 3, hard: 2, expert: 2, map: 'random' };
+const setup = { easy: 3, medium: 3, hard: 2, expert: 2, map: 'random', fresh: false, luck: false };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -26,6 +26,7 @@ function load(lineup, human) {
   const fixed = human && new URLSearchParams(location.search).get('seed');
   const seed = fixed ? +fixed : Math.floor(Math.random() * 1e9);
   const map = setup.map === 'random' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(setup.map);
+  ECON.freshGround = setup.fresh; ECON.battleLuck = setup.luck;
   game = new Game(map, seed, lineup);
   if (!human) game.human.alive = false;
   game.human.peak = 0;
@@ -88,6 +89,8 @@ function renderSetup() {
     `<span class="count">${setup[key]}</span>` +
     `<button data-key="${key}" data-d="1" ${total >= MAX_BOTS ? 'disabled' : ''}>+</button></div>`).join('');
   document.querySelectorAll('#maps button').forEach(b => b.classList.toggle('on', b.dataset.map === setup.map));
+  document.querySelectorAll('#rules button').forEach(b => b.classList.toggle('on', setup[b.dataset.rule]));
+  el('rulesNote').textContent = [setup.fresh && 'New land defends weakly for 20 s.', setup.luck && 'Fights roll luck every 2 s.'].filter(Boolean).join(' ') || 'Both off: the standard rules.';
 }
 
 // ---- input ----
@@ -173,7 +176,7 @@ canvas.addEventListener('mousemove', e => {
   if (i < 0) { el('hover').textContent = ''; return; }
   const o = game.owner[i];
   const terr = TERRAIN[game.map.terrain[i]].name;
-  el('hover').textContent = o === NEUTRAL ? terr : `${terr}, ${game.players[o].name}`;
+  el('hover').textContent = o === NEUTRAL ? terr : `${terr}, ${game.players[o].name}${game.freshness(i) < 1 ? ', fresh' : ''}`;
 });
 
 window.addEventListener('keydown', e => {
@@ -201,6 +204,8 @@ el('lineup').addEventListener('click', e => {
 });
 // Picking a map also swaps the match behind the menu, as a preview.
 el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; renderSetup(); toMenu(); } });
+// Experimental rules switch on and off; the match behind the menu restarts with them.
+el('rules').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setup[b.dataset.rule] = !setup[b.dataset.rule]; renderSetup(); toMenu(); } });
 el('shares').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setShare(+b.dataset.share); });
 el('speeds').addEventListener('click', e => { if (e.target.dataset.speed) setSpeed(+e.target.dataset.speed); });
 el('play').addEventListener('click', startMatch);

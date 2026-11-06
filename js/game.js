@@ -15,6 +15,7 @@ class Game {
     this.w = map.w; this.h = map.h;
     this.rand = mulberry32(seed ^ 0x9e3779b9);
     this.owner = new Int16Array(this.w * this.h).fill(NEUTRAL);
+    this.takenAt = new Float32Array(this.w * this.h).fill(-1e9); // when each tile last changed owner
     this.players = [];
     this.attacks = [];
     this.boats = [];
@@ -82,6 +83,7 @@ class Game {
       if (p.tiles <= 0) this.eliminate(p, pid);
     }
     this.owner[i] = pid;
+    this.takenAt[i] = this.time;
     if (pid !== NEUTRAL) {
       const p = this.players[pid];
       p.tiles++; p.sumX += x; p.sumY += y;
@@ -286,6 +288,26 @@ class Game {
     return true;
   }
 
+  // Fresh ground (experimental rule): how much of its owner's defense a tile has, from freshWeak the
+  // moment it is taken up to 1 after freshTime seconds. Always 1 with the rule off.
+  freshness(i) {
+    if (!ECON.freshGround) return 1;
+    const age = this.time - this.takenAt[i];
+    return age >= ECON.freshTime ? 1 : ECON.freshWeak + (1 - ECON.freshWeak) * age / ECON.freshTime;
+  }
+
+  // Battle luck (experimental rule): every luckRound seconds an attack on a player rolls a factor for
+  // its cost per tile, averaging 1. Below 1 the attacker is lucky, above 1 the defender is. The roll
+  // is the same for every fight, big or small, attacker or defender: luck favours no side.
+  rollLuck(a, def) {
+    if (!ECON.battleLuck || !def) { a.luck = 1; return; }
+    if (a.luckUntil !== undefined && this.time < a.luckUntil) return;
+    const s = ECON.luckSpread;
+    const z = Math.sqrt(-2 * Math.log(1 - this.rand())) * Math.cos(2 * Math.PI * this.rand());
+    a.luck = Math.max(0.5, Math.min(2, Math.exp(s * z - s * s / 2)));
+    a.luckUntil = this.time + ECON.luckRound;
+  }
+
   // Terrain multiplies everything. Open land touching a rival's border is contested and costs
   // more; owned land costs more the more troops the defender holds per tile, and big empires
   // can be made to pay extra to attack players (sizePenalty, off by default).
@@ -300,7 +322,7 @@ class Game {
       return cost;
     }
     const d = this.players[target];
-    return (ECON.tileCost + ECON.defenseMult * d.troops / Math.max(1, d.tiles)) * mult *
+    return (ECON.tileCost + ECON.defenseMult * this.freshness(i) * d.troops / Math.max(1, d.tiles)) * mult *
       (1 + ECON.sizePenalty * this.players[attacker].tiles / this.landTiles);
   }
 
@@ -347,11 +369,13 @@ class Game {
       for (let k = pick.length - 1; k > 0; k--) { const j = Math.floor(this.rand() * (k + 1)); [pick[k], pick[j]] = [pick[j], pick[k]]; }
     }
     let sx = 0, sy = 0, taken = 0, spent = false;
+    this.rollLuck(a, def);
     for (const i of pick) {
-      const cost = this.tileCost(i, a.target, a.attacker);
+      const cost = this.tileCost(i, a.target, a.attacker) * a.luck;
       if (a.troops < cost) { spent = true; break; }
       a.troops -= cost;
-      if (def) def.troops -= Math.min(def.troops, def.troops / Math.max(1, def.tiles));
+      // The defender loses the troops that held the tile (fewer on fresh ground).
+      if (def) def.troops -= Math.min(def.troops, this.freshness(i) * def.troops / Math.max(1, def.tiles));
       this.setOwner(i, attacker.id);
       if (a.edge) a.edge.add(i);
       if (def) this.clashes.push({ i, until: this.time + 0.6 });

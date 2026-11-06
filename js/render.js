@@ -10,6 +10,8 @@ class Renderer {
     this.tileCanvas.height = game.h;
     this.tctx = this.tileCanvas.getContext('2d');
     this.image = this.tctx.createImageData(game.w, game.h);
+    this.fading = new Set();        // fresh tiles still filling in (fresh ground rule), repainted as they fade
+    this.fadeAt = 0;
     for (let i = 0; i < game.w * game.h; i++) this.paintTile(i);
     this.view = { x: 0, y: 0, scale: 1 };
     this.cam = { zoom: 1, cx: game.w / 2, cy: game.h / 2 }; // zoom 1 = whole map fits
@@ -24,6 +26,13 @@ class Renderer {
       const pc = g.players[o].color;
       if (g.isBorder(i)) c = [pc[0] * 0.55, pc[1] * 0.55, pc[2] * 0.55];
       else c = [pc[0] * 0.6 + c[0] * 0.4, pc[1] * 0.6 + c[1] * 0.4, pc[2] * 0.6 + c[2] * 0.4];
+      // Fresh ground shows pale and fills in to full colour as it firms up.
+      const f = g.freshness(i);
+      if (f < 1) {
+        const a = 0.45 * (1 - f) / (1 - ECON.freshWeak);
+        c = [c[0] + (235 - c[0]) * a, c[1] + (235 - c[1]) * a, c[2] + (235 - c[2]) * a];
+        this.fading.add(i);
+      }
     }
     d[i * 4] = c[0]; d[i * 4 + 1] = c[1]; d[i * 4 + 2] = c[2]; d[i * 4 + 3] = 255;
   }
@@ -107,6 +116,13 @@ class Renderer {
   draw(dt = 0.016) {
     this.stepZoom(dt);
     const g = this.game, ctx = this.ctx, v = this.view;
+    // Fresh tiles fade back to full colour; repainted a few times a second.
+    if (this.fading.size && performance.now() - this.fadeAt > 200) {
+      this.fadeAt = performance.now();
+      const list = [...this.fading];
+      this.fading.clear();
+      for (const i of list) g.dirty.add(i);
+    }
     if (g.dirty.size) {
       for (const i of g.dirty) this.paintTile(i);
       g.dirty.clear();
@@ -225,6 +241,16 @@ class Renderer {
         ctx.stroke();
       }
       this.pill(x, y, fmt(a.troops), g.players[a.attacker].color, a.target === g.human.id, a.attacker === g.human.id);
+      // Battle luck: a tag over the pill when this round's roll is clearly good or bad for the attacker.
+      if (a.luck && (a.luck < 0.85 || a.luck > 1.18)) {
+        const lucky = a.luck < 0.85;
+        ctx.font = `700 ${10 * k}px system-ui, sans-serif`;
+        ctx.lineWidth = 3 * k;
+        ctx.strokeStyle = 'rgba(10, 14, 22, 0.9)';
+        ctx.fillStyle = lucky ? '#7dff8a' : '#ff9a6b';
+        const t = lucky ? 'lucky' : 'bad luck';
+        ctx.strokeText(t, x, y - 15 * k); ctx.fillText(t, x, y - 15 * k);
+      }
     }
   }
 

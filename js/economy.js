@@ -22,6 +22,13 @@ const ECON = {
   boatSpeed: 12,       // tiles per second
   maxBoats: 3,         // boats at sea per player
   maxFronts: 4,        // attacks (fronts) one player can have running at once
+  // Experimental rules, off unless picked in the menu.
+  freshGround: false,  // land just taken is thinly held: it defends weaker and fills in over freshTime
+  freshTime: 20,       // seconds until a taken tile defends at full strength
+  freshWeak: 0.3,      // a tile taken this instant defends with this share of the owner's troops per tile
+  battleLuck: false,   // attacks on players roll luck every luckRound seconds: cost per tile x the roll
+  luckRound: 2,        // seconds per battle round
+  luckSpread: 0.35,    // how wild a roll can be (log-normal spread); the same for every fight
 };
 
 // Terrain ids index this table. Water cannot be taken. mult raises the cost of a tile and

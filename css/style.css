@@ -86,6 +86,8 @@ button.ghost:hover { background: var(--btn); }
 .seg.wide button { flex: 1; }
 .seg.grid { display: grid; grid-template-columns: repeat(3, 1fr); }
 
+#rules button { font-size: 13px; }
+.card .note { margin: 2px 0 0; font-size: 12px; color: var(--dim); min-height: 1em; }
 #lineup .lv { display: flex; align-items: center; gap: 10px; padding: 3px 0; }
 #lineup .name { flex: 1; }
 #lineup .name small { color: var(--dim); margin-left: 6px; }
