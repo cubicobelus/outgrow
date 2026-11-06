@@ -12,7 +12,7 @@ const MAX_BOTS = 15;
 
 const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
-const setup = { easy: 3, medium: 3, hard: 2, expert: 2, length: 900, map: 'random' };
+const setup = { easy: 3, medium: 3, hard: 2, expert: 2, map: 'random' };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -45,7 +45,6 @@ function toMenu() {
 
 function startMatch() {
   mode = 'game';
-  ECON.matchTime = setup.length;
   document.body.classList.remove('in-menu');
   showScreen(null);
   load(lineupFromSetup(), true);
@@ -61,6 +60,9 @@ function showMsg(text, seconds) {
   el('msg').hidden = !text;
   msgTimer = seconds;
 }
+
+// Send buttons: the share and the troops it would send right now.
+el('shares').innerHTML = SHARES.map(s => `<button data-share="${s}">${s * 100}%<b></b></button>`).join('');
 
 function setShare(s) {
   share = s;
@@ -85,7 +87,6 @@ function renderSetup() {
     `<button data-key="${key}" data-d="-1" ${setup[key] === 0 || total <= 1 ? 'disabled' : ''}>&minus;</button>` +
     `<span class="count">${setup[key]}</span>` +
     `<button data-key="${key}" data-d="1" ${total >= MAX_BOTS ? 'disabled' : ''}>+</button></div>`).join('');
-  document.querySelectorAll('#lengths button').forEach(b => b.classList.toggle('on', +b.dataset.len === setup.length));
   document.querySelectorAll('#maps button').forEach(b => b.classList.toggle('on', b.dataset.map === setup.map));
 }
 
@@ -198,10 +199,9 @@ el('lineup').addEventListener('click', e => {
   setup[b.dataset.key] += +b.dataset.d;
   renderSetup();
 });
-el('lengths').addEventListener('click', e => { if (e.target.dataset.len) { setup.length = +e.target.dataset.len; renderSetup(); } });
 // Picking a map also swaps the match behind the menu, as a preview.
 el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; renderSetup(); toMenu(); } });
-el('shares').addEventListener('click', e => { if (e.target.dataset.share) setShare(+e.target.dataset.share); });
+el('shares').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setShare(+b.dataset.share); });
 el('speeds').addEventListener('click', e => { if (e.target.dataset.speed) setSpeed(+e.target.dataset.speed); });
 el('play').addEventListener('click', startMatch);
 el('howBtn').addEventListener('click', () => { howFrom = 'menu'; showScreen('how'); });
@@ -214,7 +214,8 @@ el('restart').addEventListener('click', startMatch);
 el('quit').addEventListener('click', toMenu);
 el('again').addEventListener('click', startMatch);
 el('toMenu').addEventListener('click', toMenu);
-el('watch').addEventListener('click', () => { showScreen(null); ended = false; watching = true; });
+// Keep playing (or watching): the match runs on with no clock and no 80% rule until one player is left.
+el('watch').addEventListener('click', () => { showScreen(null); ended = false; game.freeplay = true; watching = !game.human.alive; });
 window.addEventListener('resize', () => renderer.resize());
 
 // ---- HUD and end screen ----
@@ -228,10 +229,13 @@ function updateHud() {
   el('growth').textContent = `+${fmt(growthPerSec(me.troops, cap))}/s`;
   el('fronts').textContent = `${game.frontCount(me.id)} / ${ECON.maxFronts}`;
   el('land').textContent = `${me.tiles} tiles (${(me.tiles / game.landTiles * 100).toFixed(1)}%)`;
+  // Past the end (keep playing) the clock counts up instead.
   const left = Math.max(0, Math.ceil(ECON.matchTime - game.time));
-  el('clock').textContent = mmss(left);
-  el('clock').classList.toggle('low', left <= 60 && game.phase === 'play');
-  el('sending').textContent = fmt(me.troops * share);
+  el('clockLabel').textContent = game.freeplay ? 'Time' : 'Time left';
+  el('clock').textContent = game.freeplay ? mmss(game.time) : mmss(left);
+  el('clock').classList.toggle('low', !game.freeplay && left <= 60 && game.phase === 'play');
+  el('density').textContent = (me.troops / Math.max(1, me.tiles)).toFixed(1);
+  document.querySelectorAll('#shares b').forEach((b, k) => { const t = fmt(me.troops * SHARES[k]); if (b.textContent !== t) b.textContent = t; });
   const name = id => (id === NEUTRAL ? 'Open land' : game.players[id].name);
   el('attacks').innerHTML =
     game.attacks.filter(a => a.target === me.id).map(a => `<div class="in">Defending vs ${name(a.attacker)}: ${fmt(a.troops)}</div>`).join('') +
@@ -240,10 +244,13 @@ function updateHud() {
     game.boats.filter(b => b.owner === me.id).map(b => `<div class="out">Boat to ${name(b.target)}: ${fmt(b.troops)}</div>`).join('');
   el('feed').innerHTML = game.feed.filter(f => game.time - f.time < 8).map(f =>
     `<div style="opacity:${Math.min(1, (8 - (game.time - f.time)) / 2).toFixed(2)}"><b>${f.victim}</b> was taken out${f.killer ? ` by ${f.killer}` : ''}</div>`).join('');
-  const ranked = game.players.filter(p => p.alive && p.spawned).sort((a, b) => b.tiles - a.tiles).slice(0, 8);
-  el('board').innerHTML = ranked.map(p =>
-    `<tr${p === me ? ' class="me"' : ''}><td><span class="dot" style="background:rgb(${p.color})"></span>${p.name}</td>` +
-    `<td>${(p.tiles / game.landTiles * 100).toFixed(1)}%</td><td>${fmt(p.troops)}</td></tr>`).join('');
+  // Top 8 by land with their rank; the human's own row is added below when outside the top 8.
+  const alive = game.players.filter(p => p.alive && p.spawned).sort((a, b) => b.tiles - a.tiles);
+  const row = (p, r) => `<tr${p === me ? ' class="me"' : ''}><td class="rank">${r}</td><td><span class="dot" style="background:rgb(${p.color})"></span>${p.name}</td>` +
+    `<td>${(p.tiles / game.landTiles * 100).toFixed(1)}%</td><td>${fmt(p.troops)}</td></tr>`;
+  const mine = alive.indexOf(me);
+  el('board').innerHTML = alive.slice(0, 8).map((p, k) => row(p, k + 1)).join('') +
+    (mine >= 8 ? (mine > 8 ? '<tr class="gap"><td></td><td>&middot;&middot;&middot;</td><td></td><td></td></tr>' : '') + row(me, mine + 1) : '');
 }
 
 // Stats for the player under the mouse (a temporary aid): troops, cap, growth, land, fronts.
@@ -277,11 +284,15 @@ function showEnd(result) {
   ended = true;
   const me = game.human, w = game.winner();
   el('result').textContent = result === 'win' ? 'Victory' : !me.alive ? 'Wiped out' : `${w.name} wins`;
+  // Keep playing is offered while more than one player stands and the match has not already run on to the end.
+  const standing = game.players.filter(p => p.alive && p.spawned).length;
+  el('watch').hidden = standing < 2 || (game.freeplay && me.alive);
+  el('watch').textContent = me.alive ? 'Keep playing' : 'Keep watching';
   const rows = [
     ['Land', `${(me.tiles / game.landTiles * 100).toFixed(1)}%`],
     ['Peak land', `${(me.peak / game.landTiles * 100).toFixed(1)}%`],
     ['Rank', `${humanRank()} of ${game.players.filter(p => p.spawned).length}`],
-    ['Time', mmss(Math.min(game.time, ECON.matchTime))],
+    ['Time', mmss(game.freeplay ? game.time : Math.min(game.time, ECON.matchTime))],
   ];
   el('stats').innerHTML = rows.map(([k, v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('');
   showScreen('overlay');
@@ -313,8 +324,9 @@ function frame(now) {
     } else {
       warnIncoming();
     }
-    if (mode === 'game' && !watching) {
-      const result = game.outcome();
+    if (mode === 'game') {
+      // While watching after being wiped out, only the final winner ends the match.
+      const result = watching ? (game.winner() ? 'lose' : null) : game.outcome();
       if (result) showEnd(result);
     }
   }

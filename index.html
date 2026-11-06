@@ -10,11 +10,12 @@
 <canvas id="map"></canvas>
 
 <div id="hud" class="panel">
-  <div class="clock"><span class="label">Time left</span><span id="clock"></span></div>
+  <div class="clock"><span class="label" id="clockLabel">Time left</span><span id="clock"></span></div>
   <div class="row"><span class="label">Troops</span><span id="troops"></span></div>
   <div class="bar" title="Growth is fastest near the tick"><div id="fill"></div><div class="mark"></div></div>
   <div class="row"><span class="label">Growth</span><span id="growth"></span></div>
   <div class="row"><span class="label">Land</span><span id="land"></span></div>
+  <div class="row" title="Your troops spread over your land: what each tile costs an attacker"><span class="label">Troops per tile</span><span id="density"></span></div>
   <div class="row"><span class="label">Fronts</span><span id="fronts"></span></div>
   <div id="attacks"></div>
 </div>
@@ -26,16 +27,14 @@
     <button id="pauseToggle" title="Pause or resume (Space)">Pause</button>
     <button id="pauseBtn" title="Menu (Esc)">Menu</button>
   </div>
+  <div id="feed"></div>
 </div>
 
 <div id="bottom" class="panel">
-  <span class="label">Send</span>
-  <div id="shares" class="seg"><button data-share="0.1">10%</button><button data-share="0.2">20%</button><button data-share="0.4">40%</button><button data-share="0.6">60%</button><button data-share="0.8">80%</button></div>
-  <span id="sending"></span>
+  <div id="shares" class="seg"></div>
   <span id="hover"></span>
 </div>
 
-<div id="feed"></div>
 <div id="tip" hidden></div>
 
 <div id="zoomctl" class="panel">
@@ -56,8 +55,6 @@
     <div id="lineup"></div>
     <h3>Map</h3>
     <div id="maps" class="seg grid"><button data-map="random">Random</button><button data-map="world">World</button><button data-map="europe">Europe</button><button data-map="northamerica">North America</button><button data-map="mediterranean">Mediterranean</button><button data-map="eastasia">East Asia</button></div>
-    <h3>Match length</h3>
-    <div id="lengths" class="seg wide"><button data-len="600">10 min</button><button data-len="900">15 min</button><button data-len="1200">20 min</button></div>
     <button id="play" class="primary">Play</button>
     <button id="howBtn" class="ghost">How to play</button>
   </div>
@@ -94,7 +91,7 @@
     <h2 id="result"></h2>
     <table id="stats"></table>
     <button id="again" class="primary">Play again</button>
-    <button id="watch" class="ghost">Keep watching</button>
+    <button id="watch" class="ghost">Keep playing</button>
     <button id="toMenu" class="ghost">Main menu</button>
   </div>
 </div>

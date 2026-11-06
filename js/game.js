@@ -503,7 +503,9 @@ class Game {
     const alive = this.players.filter(p => p.alive && p.spawned);
     if (!alive.length) return null;
     const top = alive.reduce((a, b) => (b.tiles > a.tiles ? b : a));
-    if (alive.length === 1 || top.tiles >= this.landTiles * ECON.winShare || this.time >= ECON.matchTime) return top;
+    if (alive.length === 1) return top;
+    // After "keep playing" (freeplay) the clock and the 80% rule no longer end the match.
+    if (!this.freeplay && (top.tiles >= this.landTiles * ECON.winShare || this.time >= ECON.matchTime)) return top;
     return null;
   }
 
