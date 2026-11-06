@@ -8,7 +8,7 @@ const ECON = {
   growthShape: 1.5,    // growth peaks at troops = cap / (1 + growthShape), about 40% of cap
   growthSteep: 1.3,    // 1 = the plain hump; higher keeps the same peak but narrows it, so being off the sweet spot costs more
   tileCost: 20,        // troops spent to take one open plains tile
-  defenseMult: 1.2,    // extra cost per owned tile = defenseMult * defender troops per tile * terrain mult
+  defenseMult: 0.8,   // extra cost per owned tile = defenseMult * defender troops per tile * terrain mult
   sizePenalty: 0,      // attacking players costs x(1 + sizePenalty * attacker's share of all land)
   spreadFrac: 0.15,    // share of an attack's front taken each tick
   startTroopsFrac: 0.3,
