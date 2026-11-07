@@ -51,15 +51,20 @@
   <div class="card">
     <h1>Outgrow</h1>
     <p class="sub">Grab land, outbuild your rivals, hold the most when the clock runs out.</p>
-    <h3>Opponents</h3>
-    <div id="lineup"></div>
     <h3>Map</h3>
     <div id="maps" class="seg grid"><button data-map="random">Random</button><button data-map="world">World</button><button data-map="europe">Europe</button><button data-map="northamerica">North America</button><button data-map="mediterranean">Mediterranean</button><button data-map="eastasia">East Asia</button></div>
+    <h3>Opponents</h3>
+    <div id="oppMode" class="seg wide"><button data-mode="mix">Default mix</button><button data-mode="one">One level</button><button data-mode="custom">Custom</button></div>
+    <div id="lineup"></div>
+    <p id="oppNote" class="note"></p>
     <h3>Rules</h3>
     <div id="rules" class="seg wide"><button data-rule="fresh" title="Land just taken defends weakly for 20 seconds and shows pale until it firms up">Fresh ground is weak</button><button data-rule="luck" title="Fights between players roll luck every 2 seconds, for either side">Battle luck</button></div>
     <p id="rulesNote" class="note"></p>
-    <button id="play" class="primary">Play</button>
-    <button id="howBtn" class="ghost">How to play</button>
+    <div class="foot">
+      <p id="summary"></p>
+      <button id="play" class="primary">Play</button>
+      <button id="howBtn" class="ghost">How to play</button>
+    </div>
   </div>
 </div>
 

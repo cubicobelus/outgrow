@@ -93,6 +93,12 @@ button.ghost:hover { background: var(--btn); }
 #lineup .name small { color: var(--dim); margin-left: 6px; }
 #lineup .count { width: 22px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }
 #lineup button { width: 30px; padding: 3px 0; }
+#lineup .seg button { width: auto; padding: 5px 0; }
+#oneLevel { margin-bottom: 4px; }
+/* Summary and Play stay in view at the bottom of the card however far it scrolls. */
+.card .foot { position: sticky; bottom: -26px; margin: 6px -30px -26px; padding: 8px 30px 22px; background: var(--card); border-top: 1px solid rgba(255, 255, 255, 0.08); display: flex; flex-direction: column; gap: 4px; }
+#summary { margin: 0; text-align: center; color: var(--dim); font-size: 13px; }
+.card .foot button.primary { margin-top: 2px; }
 
 #stats { margin: 4px auto 6px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 #stats td { padding: 2px 10px; }
@@ -110,5 +116,6 @@ button.ghost:hover { background: var(--btn); }
   #shares button b { margin-left: 3px; }
   #hover { display: none; }
   .card { padding: 20px; }
+  .card .foot { bottom: -20px; margin: 6px -20px -20px; padding: 8px 20px 16px; }
   .card h1 { font-size: 32px; }
 }
