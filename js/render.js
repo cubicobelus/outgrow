@@ -241,16 +241,6 @@ class Renderer {
         ctx.stroke();
       }
       this.pill(x, y, fmt(a.troops), g.players[a.attacker].color, a.target === g.human.id, a.attacker === g.human.id);
-      // Battle luck: a tag over the pill when this round's roll is clearly good or bad for the attacker.
-      if (a.luck && (a.luck < 0.85 || a.luck > 1.18)) {
-        const lucky = a.luck < 0.85;
-        ctx.font = `700 ${10 * k}px system-ui, sans-serif`;
-        ctx.lineWidth = 3 * k;
-        ctx.strokeStyle = 'rgba(10, 14, 22, 0.9)';
-        ctx.fillStyle = lucky ? '#7dff8a' : '#ff9a6b';
-        const t = lucky ? 'lucky' : 'bad luck';
-        ctx.strokeText(t, x, y - 15 * k); ctx.fillText(t, x, y - 15 * k);
-      }
     }
   }
 
