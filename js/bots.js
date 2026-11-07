@@ -53,7 +53,7 @@ const HARD =   { think: 0.4, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35,
 
 const BOT_TYPES = {
   easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.8, 4],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
-            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.6, hit: 0.12, pick: 'random' },
+            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.6, hit: 0.08, hitShare: [0.1, 0.5], pick: 'random' },
   medium: { label: 'Medium', delay: [0, 4], think: [0.6, 1.6], trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
             war: [0.77, 0.93], warShare: [0.25, 0.45], odds: [0.4, 0.7], aggression: [0, 0.08], idle: 0.1, fronts: [1, 2.99], pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
@@ -185,7 +185,8 @@ function botThink(game, p) {
 }
 
 // Easy: a coin toss each time. Acts only above a random fill level, sends a random share, and
-// picks open land or a random neighbour (or a boat) without weighing anything.
+// picks open land or a random neighbour (or a boat) without weighing anything. `hit` is the chance
+// a decision attacks a player, sending a random share within `hitShare`.
 function chaosThink(game, p, T) {
   const r = () => game.rand();
   if (r() < T.idle || p.troops < (0.1 + r() * 0.8) * maxTroops(p.tiles)) return;
@@ -194,7 +195,8 @@ function chaosThink(game, p, T) {
   if (near.length && r() < T.hit) {
     const sore = near.filter(q => game.grudge(p, q.id) > 0.1 * maxTroops(p.tiles));
     const who = sore.length && r() < 0.5 ? sore : near;
-    game.launchAttack(p, who[Math.floor(r() * who.length)].id, p.troops * share);
+    const hitShare = T.hitShare[0] + (share - 0.1) / 0.7 * (T.hitShare[1] - T.hitShare[0]);
+    game.launchAttack(p, who[Math.floor(r() * who.length)].id, p.troops * hitShare);
     return;
   }
   if (game.touches(p.id, NEUTRAL)) { game.launchAttack(p, NEUTRAL, p.troops * share); return; }

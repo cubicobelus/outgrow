@@ -12,7 +12,7 @@ const MAX_BOTS = 15;
 
 const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
-const setup = { easy: 3, medium: 3, hard: 2, expert: 2, map: 'random', fresh: false, luck: false };
+const setup = { easy: 3, medium: 3, hard: 2, expert: 2, map: 'random', fresh: true, luck: true };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -90,7 +90,7 @@ function renderSetup() {
     `<button data-key="${key}" data-d="1" ${total >= MAX_BOTS ? 'disabled' : ''}>+</button></div>`).join('');
   document.querySelectorAll('#maps button').forEach(b => b.classList.toggle('on', b.dataset.map === setup.map));
   document.querySelectorAll('#rules button').forEach(b => b.classList.toggle('on', setup[b.dataset.rule]));
-  el('rulesNote').textContent = [setup.fresh && 'New land defends weakly for 20 s.', setup.luck && 'Fights roll luck every 2 s.'].filter(Boolean).join(' ') || 'Both off: the standard rules.';
+  el('rulesNote').textContent = [setup.fresh && 'New land defends weakly for 20 s.', setup.luck && 'Fights roll luck every 2 s.'].filter(Boolean).join(' ') || 'Both off: land defends fully at once and fights have no luck.';
 }
 
 // ---- input ----
@@ -204,7 +204,7 @@ el('lineup').addEventListener('click', e => {
 });
 // Picking a map also swaps the match behind the menu, as a preview.
 el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; renderSetup(); toMenu(); } });
-// Experimental rules switch on and off; the match behind the menu restarts with them.
+// The two rules switch on and off; the match behind the menu restarts with them.
 el('rules').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setup[b.dataset.rule] = !setup[b.dataset.rule]; renderSetup(); toMenu(); } });
 el('shares').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setShare(+b.dataset.share); });
 el('speeds').addEventListener('click', e => { if (e.target.dataset.speed) setSpeed(+e.target.dataset.speed); });

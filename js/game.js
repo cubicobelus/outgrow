@@ -288,7 +288,7 @@ class Game {
     return true;
   }
 
-  // Fresh ground (experimental rule): how much of its owner's defense a tile has, from freshWeak the
+  // Fresh ground (on by default, can be switched off): how much of its owner's defense a tile has, from freshWeak the
   // moment it is taken up to 1 after freshTime seconds. Always 1 with the rule off.
   freshness(i) {
     if (!ECON.freshGround) return 1;
@@ -296,7 +296,7 @@ class Game {
     return age >= ECON.freshTime ? 1 : ECON.freshWeak + (1 - ECON.freshWeak) * age / ECON.freshTime;
   }
 
-  // Battle luck (experimental rule): every luckRound seconds an attack on a player rolls a factor for
+  // Battle luck (on by default, can be switched off): every luckRound seconds an attack on a player rolls a factor for
   // its cost per tile, averaging 1. Below 1 the attacker is lucky, above 1 the defender is. The roll
   // is the same for every fight, big or small, attacker or defender: luck favours no side.
   rollLuck(a, def) {
