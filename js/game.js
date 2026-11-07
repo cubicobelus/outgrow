@@ -9,8 +9,10 @@ const PLAYER_COLORS = [
   [130, 40, 60], [250, 170, 150], [40, 110, 80], [170, 170, 60],
 ];
 class Game {
-  // lineup: bot type keys from BOT_TYPES, one per bot.
-  constructor(map, seed, lineup) {
+  // lineup: bot type keys from BOT_TYPES, one per bot. rules: this match's settings over the
+  // defaults in ECON (match length, fronts, fresh ground, luck ...); read as game.rules everywhere.
+  constructor(map, seed, lineup, rules = {}) {
+    this.rules = Object.assign({}, ECON, rules);
     this.map = map;
     this.w = map.w; this.h = map.h;
     this.rand = mulberry32(seed ^ 0x9e3779b9);
@@ -26,7 +28,7 @@ class Game {
     this.dirty = new Set();
     this.time = 0;
     this.phase = 'start';
-    this.startLeft = ECON.spawnTime;
+    this.startLeft = this.rules.spawnTime;
     this.landTiles = 0;
     for (const t of map.terrain) if (t !== WATER) this.landTiles++;
     this.human = this.addPlayer('You', PLAYER_COLORS[0], null);
@@ -41,7 +43,7 @@ class Game {
     const p = {
       id: this.players.length, name, color, isBot: !!botType, botType, alive: true, spawned: false,
       troops: 0, tiles: 0, sumX: 0, sumY: 0, border: new Set(), nextThink: 0,
-      spawnAt: 0.5 + this.rand() * (ECON.spawnTime - 1.5), // when a bot places its start
+      spawnAt: 0.5 + this.rand() * (this.rules.spawnTime - 1.5), // when a bot places its start
     };
     this.players.push(p);
     return p;
@@ -103,8 +105,8 @@ class Game {
     this.attacks = this.attacks.filter(a => a.attacker !== p.id);
   }
 
-  // A start must be open land and at least ECON.spawnGap tiles from every other start.
-  canSpawn(p, cx, cy, gap = ECON.spawnGap) {
+  // A start must be open land and at least this.rules.spawnGap tiles from every other start.
+  canSpawn(p, cx, cy, gap = this.rules.spawnGap) {
     const c = cy * this.w + cx;
     if (cx < 0 || cy < 0 || cx >= this.w || cy >= this.h || !this.isLand(c)) return false;
     if (this.owner[c] !== NEUTRAL && this.owner[c] !== p.id) return false;
@@ -115,7 +117,7 @@ class Game {
   spawn(p, cx, cy, gap) {
     if (!this.canSpawn(p, cx, cy, gap)) return false;
     if (p.spawned) this.clearStart(p);
-    const r = ECON.spawnRadius;
+    const r = this.rules.spawnRadius;
     for (let y = cy - r; y <= cy + r; y++) {
       for (let x = cx - r; x <= cx + r; x++) {
         if (x < 0 || y < 0 || x >= this.w || y >= this.h) continue;
@@ -126,7 +128,7 @@ class Game {
     }
     p.spawned = true;
     p.spawnX = cx; p.spawnY = cy;
-    p.troops = maxTroops(p.tiles) * ECON.startTroopsFrac;
+    p.troops = maxTroops(p.tiles) * this.rules.startTroopsFrac;
     return true;
   }
 
@@ -150,7 +152,7 @@ class Game {
     let best = null, bestScore = -1, found = 0;
     for (let tries = 0; tries < 3000 && found < looks; tries++) {
       const x = Math.floor(this.rand() * this.w), y = Math.floor(this.rand() * this.h);
-      if (!this.canSpawn(p, x, y, tries < 2500 ? ECON.spawnGap : 4)) continue;
+      if (!this.canSpawn(p, x, y, tries < 2500 ? this.rules.spawnGap : 4)) continue;
       found++;
       let score = 0;
       if (smart) {
@@ -180,7 +182,7 @@ class Game {
   // Starting window: bots drop in at random moments, the human may place and move freely.
   stepStart() {
     this.startLeft -= TICK;
-    const elapsed = ECON.spawnTime - this.startLeft;
+    const elapsed = this.rules.spawnTime - this.startLeft;
     for (const p of this.players) if (p.isBot && p.alive && !p.spawned && elapsed >= p.spawnAt) this.placeBot(p);
     if (this.startLeft > 0) return;
     for (const p of this.players) {
@@ -261,8 +263,8 @@ class Game {
     troops = Math.min(troops, p.troops);
     if (!p.alive || target === p.id || troops < 1) return false;
     if (!this.touches(p.id, target)) return false;
-    // At most ECON.maxFronts attacks at once; more troops at a target already being attacked just join it.
-    if (this.attacks.filter(a => a.attacker === p.id).length >= ECON.maxFronts) {
+    // At most this.rules.maxFronts attacks at once; more troops at a target already being attacked just join it.
+    if (this.attacks.filter(a => a.attacker === p.id).length >= this.rules.maxFronts) {
       const joins = !aim && this.attacks.some(a => a.attacker === p.id && a.target === target && !a.edge && !a.aim);
       const counter = this.attacks.find(a => a.attacker === target && a.target === p.id);
       if (!joins && !(counter && troops <= counter.troops)) return false;
@@ -291,21 +293,21 @@ class Game {
   // Fresh ground (on unless switched off): how much of its owner's defense a tile has, from
   // freshWeak the moment it is taken up to 1 after freshTime seconds. Always 1 with the rule off.
   freshness(i) {
-    if (!ECON.freshGround) return 1;
+    if (!this.rules.freshGround) return 1;
     const age = this.time - this.takenAt[i];
-    return age >= ECON.freshTime ? 1 : ECON.freshWeak + (1 - ECON.freshWeak) * age / ECON.freshTime;
+    return age >= this.rules.freshTime ? 1 : this.rules.freshWeak + (1 - this.rules.freshWeak) * age / this.rules.freshTime;
   }
 
   // Battle luck (on unless switched off): every luckRound seconds an attack on a player rolls a
   // factor for its cost per tile, averaging 1. Below 1 the attacker is lucky, above 1 the defender
   // is. The roll is the same for every fight, big or small, attacker or defender: luck favours no side.
   rollLuck(a, def) {
-    if (!ECON.battleLuck || !def) { a.luck = 1; return; }
+    if (!this.rules.battleLuck || !def) { a.luck = 1; return; }
     if (a.luckUntil !== undefined && this.time < a.luckUntil) return;
-    const s = ECON.luckSpread;
+    const s = this.rules.luckSpread;
     const z = Math.sqrt(-2 * Math.log(1 - this.rand())) * Math.cos(2 * Math.PI * this.rand());
     a.luck = Math.max(0.5, Math.min(2, Math.exp(s * z - s * s / 2)));
-    a.luckUntil = this.time + ECON.luckRound;
+    a.luckUntil = this.time + this.rules.luckRound;
   }
 
   // Terrain multiplies everything. Open land touching a rival's border is contested and costs
@@ -314,16 +316,16 @@ class Game {
   tileCost(i, target, attacker) {
     const mult = TERRAIN[this.map.terrain[i]].mult;
     if (target === NEUTRAL) {
-      let cost = ECON.tileCost * mult;
+      let cost = this.rules.tileCost * mult;
       for (const j of this.neighbors(i)) {
         const o = this.owner[j];
-        if (o !== NEUTRAL && o !== attacker) { cost *= ECON.contested; break; }
+        if (o !== NEUTRAL && o !== attacker) { cost *= this.rules.contested; break; }
       }
       return cost;
     }
     const d = this.players[target];
-    return (ECON.tileCost + ECON.defenseMult * this.freshness(i) * d.troops / Math.max(1, d.tiles)) * mult *
-      (1 + ECON.sizePenalty * this.players[attacker].tiles / this.landTiles);
+    return (this.rules.tileCost + this.rules.defenseMult * this.freshness(i) * d.troops / Math.max(1, d.tiles)) * mult *
+      (1 + this.rules.sizePenalty * this.players[attacker].tiles / this.landTiles);
   }
 
   stepAttack(a) {
@@ -355,7 +357,7 @@ class Game {
       let sumMult = 0;
       const cand = [];
       for (const [i, c] of counts) { sumMult += TERRAIN[this.map.terrain[i]].mult; cand.push([i, c + this.rand() * 0.6]); }
-      const n = Math.max(1, Math.round(cand.length * ECON.spreadFrac * speed * 1.15 / Math.pow(sumMult / cand.length, 1.3) + this.rand() - 0.5));
+      const n = Math.max(1, Math.round(cand.length * this.rules.spreadFrac * speed * 1.15 / Math.pow(sumMult / cand.length, 1.3) + this.rand() - 0.5));
       cand.sort((p, q) => q[1] - p[1]);
       pick = cand.slice(0, n).map(x => x[0]);
     } else {
@@ -364,7 +366,7 @@ class Game {
       // Tiles already wrapped by the attacker fall sooner, which keeps fronts smooth.
       for (const [i, c] of counts) {
         const mult = TERRAIN[this.map.terrain[i]].mult;
-        if (this.rand() < ECON.spreadFrac * speed * (0.6 + 0.4 * c) / Math.pow(mult, 1.3)) pick.push(i);
+        if (this.rand() < this.rules.spreadFrac * speed * (0.6 + 0.4 * c) / Math.pow(mult, 1.3)) pick.push(i);
       }
       for (let k = pick.length - 1; k > 0; k--) { const j = Math.floor(this.rand() * (k + 1)); [pick[k], pick[j]] = [pick[j], pick[k]]; }
     }
@@ -389,7 +391,7 @@ class Game {
       else { a.fx += (x - a.fx) * 0.15; a.fy += (y - a.fy) * 0.15; }
     }
     if (spent || (def && !def.alive)) return false;
-    return a.troops >= ECON.tileCost;
+    return a.troops >= this.rules.tileCost;
   }
 
   // ---- boats ----
@@ -440,8 +442,8 @@ class Game {
   // closest one by sea. Returns false if there is no way there.
   sendBoat(p, target, landmass, troops, near = -1) {
     troops = Math.min(troops, p.troops);
-    if (!p.alive || troops < ECON.tileCost * 3 || target === p.id) return false;
-    if (this.boats.filter(b => b.owner === p.id).length >= ECON.maxBoats) return false;
+    if (!p.alive || troops < this.rules.tileCost * 3 || target === p.id) return false;
+    if (this.boats.filter(b => b.owner === p.id).length >= this.rules.maxBoats) return false;
     const prev = new Int32Array(this.w * this.h).fill(-2);
     const queue = [];
     for (const b of p.border) for (const j of this.neighbors(b)) {
@@ -476,7 +478,7 @@ class Game {
     for (const b of this.boats) {
       const p = this.players[b.owner];
       if (!p.alive) continue;
-      b.pos += ECON.boatSpeed * TICK;
+      b.pos += this.rules.boatSpeed * TICK;
       if (b.pos < b.path.length - 1) { keep.push(b); continue; }
       this.wakes.push({ owner: b.owner, path: b.path, until: this.time + 3 });
       // Landed: whoever holds the beach now is the enemy.
@@ -529,7 +531,7 @@ class Game {
     const top = alive.reduce((a, b) => (b.tiles > a.tiles ? b : a));
     if (alive.length === 1) return top;
     // After "keep playing" (freeplay) the clock and the 80% rule no longer end the match.
-    if (!this.freeplay && (top.tiles >= this.landTiles * ECON.winShare || this.time >= ECON.matchTime)) return top;
+    if (!this.freeplay && (top.tiles >= this.landTiles * this.rules.winShare || this.time >= this.rules.matchTime)) return top;
     return null;
   }
 

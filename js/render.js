@@ -29,7 +29,7 @@ class Renderer {
       // Fresh ground shows pale and fills in to full colour as it firms up.
       const f = g.freshness(i);
       if (f < 1) {
-        const a = 0.45 * (1 - f) / (1 - ECON.freshWeak);
+        const a = 0.45 * (1 - f) / (1 - g.rules.freshWeak);
         c = [c[0] + (235 - c[0]) * a, c[1] + (235 - c[1]) * a, c[2] + (235 - c[2]) * a];
         this.fading.add(i);
       }
@@ -148,7 +148,7 @@ class Renderer {
       for (const p of g.players) {
         if (!p.spawned || p === g.human) continue;
         ctx.beginPath();
-        ctx.arc(v.x + (p.spawnX + 0.5) * v.scale, v.y + (p.spawnY + 0.5) * v.scale, ECON.spawnGap * v.scale, 0, Math.PI * 2);
+        ctx.arc(v.x + (p.spawnX + 0.5) * v.scale, v.y + (p.spawnY + 0.5) * v.scale, g.rules.spawnGap * v.scale, 0, Math.PI * 2);
         ctx.stroke();
       }
       ctx.setLineDash([]);

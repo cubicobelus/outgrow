@@ -78,8 +78,8 @@ function neighbourIds(game, p) {
 
 // Expected troops per tile when p attacks q.
 function estCost(game, p, q) {
-  return (ECON.tileCost + ECON.defenseMult * density(q)) * AVG_TERRAIN *
-    (1 + ECON.sizePenalty * p.tiles / game.landTiles);
+  return (game.rules.tileCost + game.rules.defenseMult * density(q)) * AVG_TERRAIN *
+    (1 + game.rules.sizePenalty * p.tiles / game.landTiles);
 }
 
 const pick = (game, v) => (Array.isArray(v) ? v[0] + game.rand() * (v[1] - v[0]) : v);
@@ -211,7 +211,7 @@ function patientThink(game, p, E) {
   const cap = maxTroops(p.tiles);
   const busy = target => game.attacks.some(a => a.attacker === p.id && a.target === target);
   const near = neighbourIds(game, p);
-  const openCost = ECON.tileCost * AVG_TERRAIN;
+  const openCost = game.rules.tileCost * AVG_TERRAIN;
   // Troops we keep so that neighbours do not find us cheap.
   // A tiny enemy with a big army has a huge density but cannot take much, so the guard never
   // exceeds one and a half times the strongest neighbouring army.
@@ -241,7 +241,7 @@ function patientThink(game, p, E) {
       if (a.attacker !== p.id || a.target === NEUTRAL || a.aim || !(a.luck <= 0.8) || a.fedUntil === a.luckUntil) continue;
       const add = Math.min(p.troops * E.luckTop, p.troops - guard);
       a.fedUntil = a.luckUntil;
-      if (add > ECON.tileCost * 5) game.launchAttack(p, a.target, add);
+      if (add > game.rules.tileCost * 5) game.launchAttack(p, a.target, add);
     }
   }
   // Troops of growth given up over the next `horizon` seconds by sending `send` now (0 above the peak, where sending speeds growth up).
@@ -277,7 +277,7 @@ function patientThink(game, p, E) {
   const spare = send => (game.frontCount(p.id) ? Math.min(send, p.troops - E.reserve * cap) : send);
   const strike = o => {
     const send = spare(o.send);
-    if (send < ECON.tileCost * 5) return false;
+    if (send < game.rules.tileCost * 5) return false;
     p.cool = p.cool || {}; p.tried = p.tried || {};
     if (game.time - (p.tried[o.q.id] || -9) < 1.5) p.cool[o.q.id] = game.time + 10;
     p.tried[o.q.id] = game.time;
@@ -294,7 +294,7 @@ function patientThink(game, p, E) {
       if (!q.alive || near.includes(q)) continue;
       const pl = plan(game, p, q, 0.5, [...near, q]);
       if (pl.safe < E.safety * L.safety || (pl.gain < E.minGain && !pl.wipes && q.tiles > E.cleanup * game.landTiles)) continue;
-      const send = g.depth * 8 * ECON.tileCost * ECON.contested * AVG_TERRAIN * 1.5 + 300;
+      const send = g.depth * 8 * game.rules.tileCost * game.rules.contested * AVG_TERRAIN * 1.5 + 300;
       if (send > p.troops * 0.5 || p.troops - send < guard) continue;
       const score = (pl.gain * (pl.wipes ? 2 : 1)) / g.depth;
       if (!best || score > best.score) best = { score, send, q, tile: g.tile };
@@ -308,7 +308,7 @@ function patientThink(game, p, E) {
     // Expanding is not always the best use of troops: an attack that gains nearly as much per troop
     // (more for a wipe-out or a strong rival) is taken instead, more readily by the sharper bots.
     if (E.attackBias && ready && game.frontCount(p.id) < E.fronts) {
-      const openValue = 1 / (openCost * ECON.contested);
+      const openValue = 1 / (openCost * game.rules.contested);
       // Only for a wipe-out or a contender: hitting a minor player is not worth slowing down expansion.
       const o = choose(near).find(o => (o.wipes || o.q.tiles >= 0.8 * top) && o.score / o.send >= E.attackBias * openValue);
       if (o && strike(o)) return;
