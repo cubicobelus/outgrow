@@ -1,7 +1,7 @@
 # Outgrow
 
 A territory-control strategy game in your browser. Start from a small patch of land, send troops to claim more,
-and outgrow ten rival bots on a generated continent. Plain HTML and JavaScript on a canvas, no build step,
+and outgrow rival bots on a generated or real-world map. Plain HTML and JavaScript on a canvas, no build step,
 no dependencies.
 
 ## Play
@@ -20,7 +20,7 @@ To run it offline, download the repo and open `index.html` in a browser.
 - Open plains are cheapest and fastest. Forest, hills and mountains cost more, slow attacks down and help defenders.
   Open land next to a rival costs extra, and land someone owns costs more the more troops they hold per tile.
 - **Scroll** or pinch to zoom and drag to move the map. **Space** pauses, **Esc** opens the menu. 1x, 2x and 4x change the speed.
-- From the main menu you pick how many bots of each level to face (up to 15) and a 10, 15 or 20 minute match.
+- From the main menu you pick how many bots of each level to face (up to 19), a map and a few rules. A match lasts 15 minutes.
 
 You win by holding 80% of the land or outlasting every rival. Otherwise, when the clock runs out,
 whoever holds the most land wins.
@@ -28,7 +28,7 @@ whoever holds the most land wins.
 Each match opens with an 8 second starting window: click to place your start (click again to move it) while
 the bots drop in theirs. Starts must be at least 14 tiles apart.
 
-The ten rivals come in four levels: **Easy**, **Medium**, **Hard** and **Expert**. They all play by the same rules
+The rivals (about 7 to 19, more on bigger maps) come in four levels: **Easy**, **Medium**, **Hard** and **Expert**. They all play by the same rules
 as you. Easy and Medium make classic mistakes; Hard and Expert grab land fast and only attack when it pays.
 
 ## Tests

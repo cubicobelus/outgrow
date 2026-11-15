@@ -104,3 +104,15 @@ function loadWorldMap(key) {
   for (const [, n, c] of def.rle.matchAll(/(\d+)([wpfhm])/g)) terrain.fill('wpfhm'.indexOf(c), i, i += +n);
   return { w: def.w, h: def.h, terrain, landId: labelLandmasses(def.w, def.h, terrain, 6) };
 }
+
+// Map size sets the default player count (the human included).
+const TILES_PER_PLAYER = 1650, MIN_PLAYERS = 2, MAX_PLAYERS = 20;
+const GENERATED_LAND = 17850; // typical land tiles of a generated 220x140 map (measured over 60 seeds: 17786 to 17864)
+const playersForLand = land => Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, Math.round(land / TILES_PER_PLAYER)));
+const sizeClass = land => land < 16000 ? 'Small' : land < 24000 ? 'Medium' : land < 32000 ? 'Large' : 'Huge';
+const landCache = {};
+function mapLand(key) {
+  if (key === 'random') return GENERATED_LAND;
+  if (landCache[key] === undefined) landCache[key] = loadWorldMap(key).terrain.reduce((n, t) => n + (t !== WATER), 0);
+  return landCache[key];
+}

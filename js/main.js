@@ -8,14 +8,15 @@ const LEVELS = [
   ['hard', 'Hard', 'patient'],
   ['expert', 'Expert', 'plays its best'],
 ];
-const MAX_BOTS = 15;
+const MAX_BOTS = MAX_PLAYERS - 1;
+const defaultBots = map => playersForLand(mapLand(map)) - 1; // the map's size sets the default number of rivals
 const MIX = [4, 3, 2, 1]; // default mix: each bot is Easy, Medium, Hard or Expert with these odds
 
 const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
 // Opponents: mode 'mix' draws `count` bots by MIX, 'one' makes `count` bots of level `one`,
 // 'custom' uses the per-level counts.
-const setup = { mode: 'mix', count: 10, one: 'medium', easy: 3, medium: 3, hard: 2, expert: 2, map: 'random', fresh: true, luck: true };
+const setup = { mode: 'mix', count: defaultBots('random'), one: 'medium', easy: 3, medium: 3, hard: 2, expert: 2, map: 'random', fresh: true, luck: true };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -122,7 +123,7 @@ function renderSetup() {
   el('rulesNote').textContent = [setup.fresh && 'New land defends weakly for 20 s.', setup.luck && 'Fights roll luck every 2 s.'].filter(Boolean).join(' ') || 'Both off: land defends fully at once and fights have no luck.';
   const mapName = setup.map === 'random' ? 'Random map' : el('maps').querySelector(`[data-map="${setup.map}"]`).textContent;
   const who = setup.mode === 'mix' ? 'default mix' : setup.mode === 'one' ? `all ${setup.one}` : 'custom';
-  el('summary').textContent = `${mapName}, ${total + 1} players, ${who}`;
+  el('summary').textContent = `${mapName} (${sizeClass(mapLand(setup.map))}), ${total + 1} players, ${who}`;
 }
 
 // ---- input ----
@@ -237,7 +238,7 @@ el('lineup').addEventListener('click', e => {
   renderSetup();
 });
 // Picking a map also swaps the match behind the menu, as a preview.
-el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; renderSetup(); toMenu(); } });
+el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; setup.count = defaultBots(setup.map); renderSetup(); toMenu(); } });
 // The two rules switch on and off; the match behind the menu restarts with them.
 el('rules').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setup[b.dataset.rule] = !setup[b.dataset.rule]; renderSetup(); toMenu(); } });
 el('shares').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setShare(+b.dataset.share); });

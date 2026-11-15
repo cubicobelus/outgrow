@@ -88,6 +88,36 @@ check('real-world maps load and run 30 s', () => {
   return keys.join(',');
 });
 
+check('map sizes give sane player counts', () => {
+  const keys = ['random', ...Object.keys(run(ctx, 'WORLD_MAPS'))], out = [];
+  for (const k of keys) {
+    ctx.k = k;
+    const n = run(ctx, 'playersForLand(mapLand(k))'), c = run(ctx, 'sizeClass(mapLand(k))');
+    assert(n >= 2 && n <= 20, k + ': ' + n + ' players');
+    assert(['Small', 'Medium', 'Large', 'Huge'].includes(c), k + ': size class ' + c);
+    out.push(k + ' ' + n + ' ' + c);
+  }
+  const pl = k => { ctx.k = k; return run(ctx, 'playersForLand(mapLand(k))'); };
+  assert(pl('europe') > pl('world'), 'europe should have more players than world');
+  const cols = run(ctx, 'PLAYER_COLORS.map(c => c.join())');
+  assert(cols.length >= run(ctx, 'MAX_PLAYERS'), 'only ' + cols.length + ' colours');
+  assert(new Set(cols).size === cols.length, 'duplicate player colour');
+  return out.join('; ');
+});
+
+check('europe full lineup of 19 bots spawns and runs 30 s', () => {
+  ctx.g = run(ctx, `(function () {
+    const lineup = [...Array(8).fill('easy'), ...Array(6).fill('medium'), ...Array(3).fill('hard'), ...Array(2).fill('expert')];
+    const g = new Game(loadWorldMap('europe'), 5, lineup); g.human.alive = false; return g;
+  })()`);
+  run(ctx, 'playStart(g); steps(g, 30)');
+  const bots = ctx.g.players.filter(p => p.isBot);
+  assert(bots.length === 19, bots.length + ' bots');
+  assert(bots.every(p => p.spawned && p.tiles > 0), 'a bot did not spawn or own land');
+  const bad = run(ctx, 'sane(g)'); assert(!bad, bad);
+  return '19 bots, land ' + run(ctx, 'owned(g)');
+});
+
 check('human spawns, attacks neutral land, gains tiles', () => {
   ctx.g = run(ctx, 'new Game(generateMap(220, 140, 31676), 31676, [])');
   const r = run(ctx, `(function () {
