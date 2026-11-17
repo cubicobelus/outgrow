@@ -68,8 +68,31 @@ function generateMap(w, h, seed) {
     else if (e >= hillLine) terrain[i] = HILLS;
     else terrain[i] = moist[i] >= forestLine ? FOREST : PLAINS;
   }
+  climate(w, h, terrain, moist, rand);
   const landId = labelLandmasses(w, h, terrain);
   return { w, h, terrain, landId };
+}
+
+// Some generated maps get a desert or a cold edge, many get neither: a dry patch turns the driest
+// lowland to desert, and a cold top and/or bottom turns lowland there to tundra (hills and mountains
+// stay). Drawn after the land is made, so the same seed keeps the same coastline.
+function climate(w, h, terrain, moist, rand) {
+  const low = i => terrain[i] === PLAINS || terrain[i] === FOREST;
+  if (rand() < 0.4) {
+    const dry = fractal(w, h, rand, [36, 18, 9]);
+    for (let i = 0; i < dry.length; i++) dry[i] -= moist[i] * 0.5;
+    const share = 0.06 + rand() * 0.12, lowDry = [];
+    for (let i = 0; i < dry.length; i++) if (low(i)) lowDry.push(dry[i]);
+    const line = quantile(lowDry, 1 - share);
+    for (let i = 0; i < dry.length; i++) if (low(i) && dry[i] >= line) terrain[i] = DESERT;
+  }
+  if (rand() < 0.35) {
+    const side = rand(), depth = 0.12 + rand() * 0.1, edge = fractal(w, h, rand, [12, 6]);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x, j = (edge[i] - 0.5) * 0.08, top = y / h + j, bottom = 1 - y / h + j;
+      if (low(i) && ((side < 0.7 && top < depth) || (side > 0.3 && bottom < depth))) terrain[i] = TUNDRA;
+    }
+  }
 }
 
 // Gives every landmass an id (water is -1). Islands smaller than `minIsland` tiles are sunk.
@@ -101,7 +124,7 @@ function labelLandmasses(w, h, terrain, minIsland = ECON.minIsland) {
 function loadWorldMap(key) {
   const def = WORLD_MAPS[key], terrain = new Uint8Array(def.w * def.h);
   let i = 0;
-  for (const [, n, c] of def.rle.matchAll(/(\d+)([wpfhm])/g)) terrain.fill('wpfhm'.indexOf(c), i, i += +n);
+  for (const [, n, c] of def.rle.matchAll(/(\d+)([wpfhmdt])/g)) terrain.fill('wpfhmdt'.indexOf(c), i, i += +n);
   return { w: def.w, h: def.h, terrain, landId: labelLandmasses(def.w, def.h, terrain, 6) };
 }
 

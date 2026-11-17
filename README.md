@@ -17,7 +17,7 @@ To run it offline, download the repo and open `index.html` in a browser.
 - **Click** open land or a neighbour's land to send the chosen share of your troops (**1** to **5**, or the buttons
   at the bottom). An attack spreads along your shared border until its troops run out; its troops show on the map.
 - **Boats:** click land you can only reach across water to send your troops by boat. Up to 3 at sea at once.
-- Open plains are cheapest and fastest. Forest, hills and mountains cost more, slow attacks down and help defenders.
+- Open plains and desert are cheapest and fastest. Forest and tundra, then hills, then mountains cost more, slow attacks down and help defenders.
   Open land next to a rival costs extra, and land someone owns costs more the more troops they hold per tile.
 - **Scroll** or pinch to zoom and drag to move the map. **Space** pauses, **Esc** opens the menu. 1x, 2x and 4x change the speed.
 - From the main menu you pick how many bots of each level to face (up to 19), a map and a few rules. A match lasts 15 minutes.

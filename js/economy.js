@@ -37,10 +37,12 @@ const TERRAIN = [
   { name: 'Water',     mult: Infinity, color: [38, 70, 110] },
   { name: 'Plains',    mult: 1,        color: [150, 178, 104] },
   { name: 'Forest',    mult: 1.5,      color: [92, 132, 78] },
-  { name: 'Hills',     mult: 2,        color: [168, 150, 110] },
+  { name: 'Hills',     mult: 2,        color: [146, 120, 86] },
   { name: 'Mountains', mult: 3,        color: [140, 136, 132] },
+  { name: 'Desert',    mult: 1,        color: [214, 192, 134] },  // plays like plains (for now)
+  { name: 'Tundra',    mult: 1.5,      color: [184, 196, 190] },  // plays like forest (for now)
 ];
-const WATER = 0, PLAINS = 1, FOREST = 2, HILLS = 3, MOUNTAINS = 4;
+const WATER = 0, PLAINS = 1, FOREST = 2, HILLS = 3, MOUNTAINS = 4, DESERT = 5, TUNDRA = 6;
 
 function maxTroops(tiles) {
   return ECON.capBase + ECON.capPerTile * Math.pow(tiles, ECON.capExp);
