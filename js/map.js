@@ -173,7 +173,7 @@ const MAP_INFO = [
   { id: 'southernafrica', name: 'Southern Africa', regions: ['Africa'] },
   { id: 'nile', name: 'Egypt and the Nile', regions: ['Africa', 'Asia'] },
   { id: 'madagascar', name: 'Madagascar', regions: ['Africa', 'Seas & islands'] },
-  { id: 'india', name: 'India', regions: ['Asia'] },
+  { id: 'turkey', name: 'Turkey', regions: ['Europe', 'Asia'] },
   { id: 'china', name: 'China', regions: ['Asia'] },
   { id: 'indonesia', name: 'Indonesia', regions: ['Asia', 'Oceania', 'Seas & islands'] },
   { id: 'philippines', name: 'Philippines', regions: ['Asia', 'Oceania', 'Seas & islands'] },
