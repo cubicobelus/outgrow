@@ -147,6 +147,16 @@ const MAP_INFO = [
   { id: 'britishisles', name: 'British Isles', regions: ['Europe', 'Seas & islands'] },
   { id: 'japan', name: 'Japan', regions: ['Asia', 'Seas & islands'] },
   { id: 'usa', name: 'United States', regions: ['Americas'] },
+  { id: 'scandinavia', name: 'Scandinavia and the Baltic', regions: ['Europe'] },
+  { id: 'iberia', name: 'Iberia', regions: ['Europe', 'Seas & islands'] },
+  { id: 'centraleurope', name: 'Central Europe', regions: ['Europe'] },
+  { id: 'balkans', name: 'Balkans', regions: ['Europe'] },
+  { id: 'blacksea', name: 'Black Sea', regions: ['Europe', 'Asia', 'Seas & islands'] },
+  { id: 'caucasus', name: 'Caucasus', regions: ['Europe', 'Asia'] },
+  { id: 'centralasia', name: 'Central Asia', regions: ['Asia'] },
+  { id: 'siberia', name: 'Siberia', regions: ['Asia'] },
+  { id: 'arctic', name: 'Arctic and Greenland', regions: ['Americas', 'Europe', 'Seas & islands'] },
+  { id: 'southasia', name: 'South Asia', regions: ['Asia'] },
 ];
 const MAP_REGIONS = ['Continents', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Seas & islands'];
 
