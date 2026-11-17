@@ -16,7 +16,7 @@ const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
 // Opponents: mode 'mix' draws `count` bots by MIX, 'one' makes `count` bots of level `one`,
 // 'custom' uses the per-level counts.
-const setup = { mode: 'mix', count: defaultBots('generated'), one: 'medium', easy: 3, medium: 3, hard: 2, expert: 2, map: 'generated', fresh: true, luck: true };
+const setup = { mode: 'mix', count: defaultBots('generated'), one: 'medium', easy: 3, medium: 3, hard: 2, expert: 2, map: 'generated' };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -43,7 +43,7 @@ function load(lineup, human) {
   const seed = fixed ? +fixed : Math.floor(Math.random() * 1e9);
   const map = setup.map === 'generated' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(setup.map);
   if (typeof lineup === 'function') lineup = lineup(mulberry32(seed ^ 0x2545f491));
-  game = new Game(map, seed, lineup, { freshGround: setup.fresh, battleLuck: setup.luck });
+  game = new Game(map, seed, lineup);
   if (!human) game.human.alive = false;
   game.human.peak = 0;
   renderer = new Renderer(canvas, game);
@@ -176,8 +176,6 @@ function renderSetup() {
   drawThumb(el('mapPickThumb'), setup.map);
   el('mapPickName').textContent = info.name;
   el('mapPickBadge').textContent = mapBadge(setup.map);
-  document.querySelectorAll('#rules button').forEach(b => b.classList.toggle('on', setup[b.dataset.rule]));
-  el('rulesNote').textContent = [setup.fresh && 'New land defends weakly for 20 s.', setup.luck && 'Fights roll luck every 2 s.'].filter(Boolean).join(' ') || 'Both off: land defends fully at once and fights have no luck.';
   const mapName = setup.map === 'generated' ? 'Generated map' : info.name;
   const who = setup.mode === 'mix' ? 'default mix' : setup.mode === 'one' ? `all ${setup.one}` : 'custom';
   el('summary').textContent = `${mapName} (${sizeClass(mapLand(setup.map))}), ${total + 1} players, ${who}`;
@@ -305,8 +303,6 @@ el('mapGrid').addEventListener('click', e => {
   if (!b) return;
   setup.map = b.dataset.map; setup.count = defaultBots(setup.map); renderSetup(); toMenu();
 });
-// The two rules switch on and off; the match behind the menu restarts with them.
-el('rules').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setup[b.dataset.rule] = !setup[b.dataset.rule]; renderSetup(); toMenu(); } });
 el('shares').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setShare(+b.dataset.share); });
 el('speeds').addEventListener('click', e => { if (e.target.dataset.speed) setSpeed(+e.target.dataset.speed); });
 el('play').addEventListener('click', startMatch);

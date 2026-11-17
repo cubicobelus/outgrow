@@ -20,7 +20,7 @@ To run it offline, download the repo and open `index.html` in a browser.
 - Open plains and desert are cheapest and fastest. Forest and tundra, then hills, then mountains cost more, slow attacks down and help defenders.
   Open land next to a rival costs extra, and land someone owns costs more the more troops they hold per tile.
 - **Scroll** or pinch to zoom and drag to move the map. **Space** pauses, **Esc** opens the menu. 1x, 2x and 4x change the speed.
-- From the main menu you pick how many bots of each level to face (up to 19), a map and a few rules. A match lasts 15 minutes.
+- From the main menu you pick how many bots of each level to face (up to 19), and a map. A match lasts 15 minutes.
 
 You win by holding 80% of the land or outlasting every rival. Otherwise, when the clock runs out,
 whoever holds the most land wins.

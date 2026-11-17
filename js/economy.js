@@ -22,7 +22,7 @@ const ECON = {
   boatSpeed: 12,       // tiles per second
   maxBoats: 3,         // boats at sea per player
   maxFronts: 4,        // attacks (fronts) one player can have running at once
-  // Standard rules since 2026-11-07; either can be switched off in the menu.
+  // Standard rules since 2026-11-07, permanent since 2026-11-17 (the flags stay for test tools).
   freshGround: true,  // land just taken is thinly held: it defends weaker and fills in over freshTime
   freshTime: 20,       // seconds until a taken tile defends at full strength
   freshWeak: 0.3,      // a tile taken this instant defends with this share of the owner's troops per tile
