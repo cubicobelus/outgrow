@@ -4,6 +4,8 @@ A territory-control strategy game in your browser. Start from a small patch of l
 and outgrow rival bots on a generated or real-world map. Plain HTML and JavaScript on a canvas, no build step,
 no dependencies.
 
+![A match on the Europe map: bots of every level spreading out from their starts](docs/screenshot.png)
+
 ## Play
 
 **[Play in your browser](https://cubicobelus.github.io/outgrow/)**: nothing to download or install.
@@ -29,7 +31,20 @@ Each match opens with an 8 second starting window: click to place your start (cl
 the bots drop in theirs. Starts must be at least 14 tiles apart.
 
 The rivals (about 7 to 19, more on bigger maps) come in four levels: **Easy**, **Medium**, **Hard** and **Expert**. They all play by the same rules
-as you. Easy and Medium make classic mistakes; Hard and Expert grab land fast and only attack when it pays.
+as you. Easy blunders often, Medium picks on weaker neighbours, Hard plays patiently, and Expert grabs land fast and
+only attacks when it pays.
+
+## Maps
+
+- **Generated**: new terrain every match.
+- **Random**: one of the real maps, picked when you press Play.
+- **50 real-world maps** built from Natural Earth data: the World and every continent, regions such as Scandinavia,
+  the Caucasus, the Andes or the Gulf of Mexico, and island maps such as Hawaii, Japan and New Zealand.
+  Terrain follows the real land: mountain ranges, deserts, tundra in the far north and south, rainforest in the
+  Amazon and Congo, and green river valleys through the deserts.
+
+Bigger maps bring more rivals: about one player per 1,650 land tiles, from 2 to 20. Search and region filters in the
+map picker help find one.
 
 ## Tests
 
