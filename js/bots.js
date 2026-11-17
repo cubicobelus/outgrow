@@ -6,8 +6,9 @@
 // a sluggish Hard. On average each level still beats the one below.
 //
 // Easy plays almost at random (`chaos`): each decision it rolls whether to act, what to hit and
-// how much to send. Medium uses the simple rules below and makes the classic mistakes: it
-// attacks whenever it is nearly full, which leaves it emptied and cheap to take.
+// how much to send, and on `blunder` of its decisions it makes a plainly bad move on purpose.
+// Medium uses the simple rules below: it picks on players weaker than itself, but judges them by
+// whole armies and attacks on a fixed rhythm, so it can be baited and leaves itself thin.
 //   delay:      seconds before the first move [min, max]
 //   think:      average seconds between decisions [min, max]
 //   trigger:    take open land when troops reach this share of cap [min, max]
@@ -19,6 +20,7 @@
 //   aggression: chance to hit a neighbour even while open land is left
 //   idle:       chance to skip a decision
 //   pick:       'weakest' (fewest troops per tile) or 'random' neighbour
+//   blunder:    Easy only: chance a decision is a plainly bad move (see blunder())
 //
 // Hard and Expert are patient: grab open land fast without looking cheap, only attack a player
 // when it stays safe, and punish neighbours that empty themselves. Expert's numbers were tuned
@@ -50,13 +52,13 @@
 //   reach:       look for players this many open tiles away (not touching yet) and thrust at ones worth hitting; 0 = only neighbours
 //   luckTop:     battle luck: while one of our attacks has a lucky round (tiles at most 0.8 of their price), add this share of our troops to it (0 = never)
 const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.45, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true, reach: 10, exact: true, noise: 0, crowd: 0.5, rival: 0.8, cleanup: 0.04, attackBias: 0.5, fronts: 4, grudge: 0.1, capAt: 0.88, reserve: 0.3, patience: 2, chipFrom: 0.5, minX: 0.3, horizon: 25, netMin: 0.5, luckTop: 0.15 };
-const HARD =   { think: 0.4, openTrigger: 0.52, openShare: 0.3, openGuard: 0.35, safety: 0.7, minGain: 10, snipe: 1.2, lean: 0.2, delay: [0, 3], chip: false, reach: 4, exact: false, noise: 0.35, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 3, grudge: 0.6, capAt: 0.88, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0, horizon: 0, netMin: 0.5, luckTop: 0 };
+const HARD =   { think: 1, openTrigger: 0.52, openShare: 0.25, openGuard: 0.35, safety: 0.7, minGain: 10, snipe: 1, lean: 0.2, delay: [0, 3], chip: false, reach: 0, exact: false, noise: 0.5, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 3, grudge: 0.6, capAt: 0.88, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0, horizon: 0, netMin: 0.5, luckTop: 0 };
 
 const BOT_TYPES = {
   easy:   { label: 'Easy',   chaos: true, delay: [0, 5], think: [1.8, 4],   trigger: [0.35, 0.85], share: [0.15, 0.4], earlyShare: [0.45, 0.85], earlyTime: 60,
-            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.6, hit: 0.08, hitShare: [0.1, 0.5], pick: 'random' },
-  medium: { label: 'Medium', delay: [0, 4], think: [0.6, 1.6], trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
-            war: [0.77, 0.93], warShare: [0.25, 0.45], odds: [0.4, 0.7], aggression: [0, 0.08], idle: 0.1, fronts: [1, 2.99], pick: 'weakest' },
+            war: [0.85, 1],    warShare: [0.15, 0.35], odds: 0, aggression: [0, 0.03], idle: 0.6, hit: 0.08, hitShare: [0.1, 0.5], pick: 'random', blunder: 0.3 },
+  medium: { label: 'Medium', delay: [0, 4], think: [0.4, 1],   trigger: [0.4, 0.7],   share: [0.25, 0.45], earlyShare: [0.5, 0.8], earlyTime: 45,
+            war: [0.5, 0.7],   warShare: [0.4, 0.6],   odds: [1.2, 1.6], aggression: [0, 0.08], idle: 0.05, fronts: [1, 2.99], pick: 'weakest' },
   hard:   { label: 'Hard',   patient: HARD },
   expert: { label: 'Expert', patient: EXPERT },
 };
@@ -185,12 +187,29 @@ function botThink(game, p) {
   }
 }
 
+// Easy's blunders: pour nearly every troop into open land (an empty army regrows slowly and is
+// cheap to take), poke the strongest neighbour (and earn its grudge), or doze off for a while.
+function blunder(game, p, r) {
+  const k = r();
+  if (k < 0.4 && game.touches(p.id, NEUTRAL)) { game.launchAttack(p, NEUTRAL, p.troops * (0.85 + r() * 0.15)); return; }
+  const near = neighbourIds(game, p);
+  if (k < 0.7 && near.length) {
+    const big = near.reduce((a, b) => (b.troops > a.troops ? b : a));
+    game.launchAttack(p, big.id, p.troops * (0.2 + r() * 0.2));
+    return;
+  }
+  p.nextThink = game.time + 5 + r() * 10;
+}
+
 // Easy: a coin toss each time. Acts only above a random fill level, sends a random share, and
 // picks open land or a random neighbour (or a boat) without weighing anything. `hit` is the chance
 // a decision attacks a player, sending a random share within `hitShare`.
 function chaosThink(game, p, T) {
   const r = () => game.rand();
-  if (r() < T.idle || p.troops < (0.1 + r() * 0.8) * maxTroops(p.tiles)) return;
+  if (r() < T.idle) return;
+  // A blunder: the plainly bad moves a new player makes, so Easy is beatable on purpose.
+  if (T.blunder && r() < T.blunder) return blunder(game, p, r);
+  if (p.troops < (0.1 + r() * 0.8) * maxTroops(p.tiles)) return;
   const share = 0.1 + r() * 0.7;
   const near = neighbourIds(game, p);
   if (near.length && r() < T.hit) {
