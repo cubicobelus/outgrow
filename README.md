@@ -13,7 +13,7 @@ To run it offline, download the repo and open `index.html` in a browser.
 ## How it works
 
 - **Troops** grow over time, but only up to your **cap**, which rises with the land you hold. Growth is fastest
-  around 40% of your cap (the tick on the troop bar) and stops at the cap, so sitting full wastes time.
+  around 40% of your cap and stops at the cap, so sitting full wastes time.
 - **Click** open land or a neighbour's land to send the chosen share of your troops (**1** to **5**, or the buttons
   at the bottom). An attack spreads along your shared border until its troops run out; its troops show on the map.
 - **Boats:** click land you can only reach across water to send your troops by boat. Up to 3 at sea at once.
