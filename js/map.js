@@ -105,6 +105,18 @@ function loadWorldMap(key) {
   return { w: def.w, h: def.h, terrain, landId: labelLandmasses(def.w, def.h, terrain, 6) };
 }
 
+// The map catalogue, in display order. `generated` makes new terrain every match; the rest are real
+// maps in worldmaps.js. Regions drive the picker's filter chips.
+const MAP_INFO = [
+  { id: 'generated', name: 'Generated', regions: ['Continents'], note: 'new terrain every match' },
+  { id: 'world', name: 'World', regions: ['Continents'] },
+  { id: 'europe', name: 'Europe', regions: ['Europe'] },
+  { id: 'northamerica', name: 'North America', regions: ['Continents', 'Americas'] },
+  { id: 'mediterranean', name: 'Mediterranean', regions: ['Europe', 'Africa', 'Seas & islands'] },
+  { id: 'eastasia', name: 'East Asia', regions: ['Asia'] },
+];
+const MAP_REGIONS = ['Continents', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Seas & islands'];
+
 // Map size sets the default player count (the human included).
 const TILES_PER_PLAYER = 1650, MIN_PLAYERS = 2, MAX_PLAYERS = 20;
 const GENERATED_LAND = 17850; // typical land tiles of a generated 220x140 map (measured over 60 seeds: 17786 to 17864)
@@ -112,7 +124,7 @@ const playersForLand = land => Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, Math.
 const sizeClass = land => land < 16000 ? 'Small' : land < 24000 ? 'Medium' : land < 32000 ? 'Large' : 'Huge';
 const landCache = {};
 function mapLand(key) {
-  if (key === 'random') return GENERATED_LAND;
+  if (key === 'generated') return GENERATED_LAND;
   if (landCache[key] === undefined) landCache[key] = loadWorldMap(key).terrain.reduce((n, t) => n + (t !== WATER), 0);
   return landCache[key];
 }

@@ -16,7 +16,7 @@ const canvas = document.getElementById('map');
 const el = id => document.getElementById(id);
 // Opponents: mode 'mix' draws `count` bots by MIX, 'one' makes `count` bots of level `one`,
 // 'custom' uses the per-level counts.
-const setup = { mode: 'mix', count: defaultBots('random'), one: 'medium', easy: 3, medium: 3, hard: 2, expert: 2, map: 'random', fresh: true, luck: true };
+const setup = { mode: 'mix', count: defaultBots('generated'), one: 'medium', easy: 3, medium: 3, hard: 2, expert: 2, map: 'generated', fresh: true, luck: true };
 let game, renderer, mode = 'menu', share = 0.4, speed = 1, paused = false, acc = 0, last = 0;
 let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
@@ -41,7 +41,7 @@ const botCount = () => (setup.mode === 'custom' ? LEVELS.reduce((s, [k]) => s + 
 function load(lineup, human) {
   const fixed = human && new URLSearchParams(location.search).get('seed');
   const seed = fixed ? +fixed : Math.floor(Math.random() * 1e9);
-  const map = setup.map === 'random' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(setup.map);
+  const map = setup.map === 'generated' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(setup.map);
   if (typeof lineup === 'function') lineup = lineup(mulberry32(seed ^ 0x2545f491));
   game = new Game(map, seed, lineup, { freshGround: setup.fresh, battleLuck: setup.luck });
   if (!human) game.human.alive = false;
@@ -69,7 +69,7 @@ function startMatch() {
 }
 
 function showScreen(id) {
-  for (const s of ['menu', 'how', 'pause', 'overlay']) el(s).hidden = s !== id;
+  for (const s of ['menu', 'picker', 'how', 'pause', 'overlay']) el(s).hidden = s !== id;
 }
 
 function showMsg(text, seconds) {
@@ -102,6 +102,60 @@ const counter = (key, value, min, max) =>
   `<span class="count">${value}</span>` +
   `<button data-key="${key}" data-d="1" ${value >= max ? 'disabled' : ''}>+</button>`;
 
+// ---- map picker ----
+
+const THUMB_SEED = 1234; // fixed seed for the generated map's thumbnail, so it looks the same every time
+const THUMB_W = 96, THUMB_H = 56;
+const thumbCache = {};   // map id -> ImageData of its terrain colours at THUMB_W x THUMB_H
+let pickerRegion = 'All';
+
+// Where a thumbnail's map data comes from. Today every real map is already loaded (worldmaps.js);
+// when maps are loaded on demand from separate files, only this function has to change.
+function thumbMapData(id) {
+  return id === 'generated' ? generateMap(MAP_W, MAP_H, THUMB_SEED) : loadWorldMap(id);
+}
+
+// Paints a map's terrain colours scaled to fit the canvas (keeping its shape), water around it.
+function drawThumb(canvas, id) {
+  canvas.width = THUMB_W; canvas.height = THUMB_H;
+  const g = canvas.getContext('2d');
+  if (!thumbCache[id]) {
+    const map = thumbMapData(id), img = g.createImageData(THUMB_W, THUMB_H);
+    const s = Math.min(THUMB_W / map.w, THUMB_H / map.h);
+    const dw = Math.round(map.w * s), dh = Math.round(map.h * s), ox = (THUMB_W - dw) >> 1, oy = (THUMB_H - dh) >> 1;
+    for (let y = 0; y < THUMB_H; y++) for (let x = 0; x < THUMB_W; x++) {
+      const inside = x >= ox && x < ox + dw && y >= oy && y < oy + dh;
+      const mx = Math.min(map.w - 1, Math.floor((x - ox) / s)), my = Math.min(map.h - 1, Math.floor((y - oy) / s));
+      const c = TERRAIN[inside ? map.terrain[my * map.w + mx] : WATER].color, k = (y * THUMB_W + x) * 4;
+      img.data[k] = c[0]; img.data[k + 1] = c[1]; img.data[k + 2] = c[2]; img.data[k + 3] = 255;
+    }
+    thumbCache[id] = img;
+  }
+  g.putImageData(thumbCache[id], 0, 0);
+}
+
+const mapBadge = id => `${sizeClass(mapLand(id))} \u00b7 ${playersForLand(mapLand(id))} players`;
+
+function renderPicker() {
+  const regions = ['All', ...MAP_REGIONS.filter(r => MAP_INFO.some(m => m.regions.includes(r)))];
+  if (!regions.includes(pickerRegion)) pickerRegion = 'All';
+  el('regions').innerHTML = regions.map(r => `<button data-region="${r}" class="${r === pickerRegion ? 'on' : ''}">${r}</button>`).join('');
+  const q = el('mapSearch').value.trim().toLowerCase();
+  const shown = MAP_INFO.filter(m => (pickerRegion === 'All' || m.regions.includes(pickerRegion)) && m.name.toLowerCase().includes(q));
+  el('mapGrid').innerHTML = shown.length
+    ? shown.map(m => `<button class="mapTile${m.id === setup.map ? ' on' : ''}" data-map="${m.id}"${m.note ? ` title="${m.note}"` : ''}><canvas></canvas><span class="tname">${m.name}</span><span class="tbadge">${mapBadge(m.id)}</span></button>`).join('')
+    : '<p class="none">No maps match</p>';
+  el('mapGrid').querySelectorAll('.mapTile').forEach(b => drawThumb(b.querySelector('canvas'), b.dataset.map));
+}
+
+function openPicker() {
+  el('mapSearch').value = '';
+  pickerRegion = 'All';
+  renderPicker();
+  showScreen('picker');
+  el('mapGrid').scrollTop = 0;
+}
+
 function renderSetup() {
   const total = botCount();
   document.querySelectorAll('#oppMode button').forEach(b => b.classList.toggle('on', b.dataset.mode === setup.mode));
@@ -118,10 +172,13 @@ function renderSetup() {
   el('oppNote').textContent = setup.mode === 'mix' ? 'Each bot is drawn at random: 4 Easy to 3 Medium to 2 Hard to 1 Expert, on average.'
     : setup.mode === 'one' ? `${oneName} bots: ${oneNote}.` : '';
   el('oppNote').hidden = setup.mode === 'custom';
-  document.querySelectorAll('#maps button').forEach(b => b.classList.toggle('on', b.dataset.map === setup.map));
+  const info = MAP_INFO.find(m => m.id === setup.map);
+  drawThumb(el('mapPickThumb'), setup.map);
+  el('mapPickName').textContent = info.name;
+  el('mapPickBadge').textContent = mapBadge(setup.map);
   document.querySelectorAll('#rules button').forEach(b => b.classList.toggle('on', setup[b.dataset.rule]));
   el('rulesNote').textContent = [setup.fresh && 'New land defends weakly for 20 s.', setup.luck && 'Fights roll luck every 2 s.'].filter(Boolean).join(' ') || 'Both off: land defends fully at once and fights have no luck.';
-  const mapName = setup.map === 'random' ? 'Random map' : el('maps').querySelector(`[data-map="${setup.map}"]`).textContent;
+  const mapName = setup.map === 'generated' ? 'Generated map' : info.name;
   const who = setup.mode === 'mix' ? 'default mix' : setup.mode === 'one' ? `all ${setup.one}` : 'custom';
   el('summary').textContent = `${mapName} (${sizeClass(mapLand(setup.map))}), ${total + 1} players, ${who}`;
 }
@@ -213,6 +270,7 @@ canvas.addEventListener('mousemove', e => {
 });
 
 window.addEventListener('keydown', e => {
+  if (!el('picker').hidden) { if (e.key === 'Escape') showScreen('menu'); return; }
   if (mode !== 'game') return;
   if (e.key === 'Escape') {
     if (!el('how').hidden) { showScreen(howFrom); return; }
@@ -238,7 +296,15 @@ el('lineup').addEventListener('click', e => {
   renderSetup();
 });
 // Picking a map also swaps the match behind the menu, as a preview.
-el('maps').addEventListener('click', e => { if (e.target.dataset.map) { setup.map = e.target.dataset.map; setup.count = defaultBots(setup.map); renderSetup(); toMenu(); } });
+el('mapPick').addEventListener('click', openPicker);
+el('pickerBack').addEventListener('click', () => showScreen('menu'));
+el('mapSearch').addEventListener('input', renderPicker);
+el('regions').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { pickerRegion = b.dataset.region; renderPicker(); } });
+el('mapGrid').addEventListener('click', e => {
+  const b = e.target.closest('.mapTile');
+  if (!b) return;
+  setup.map = b.dataset.map; setup.count = defaultBots(setup.map); renderSetup(); toMenu();
+});
 // The two rules switch on and off; the match behind the menu restarts with them.
 el('rules').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { setup[b.dataset.rule] = !setup[b.dataset.rule]; renderSetup(); toMenu(); } });
 el('shares').addEventListener('click', e => { const b = e.target.closest('button'); if (b) setShare(+b.dataset.share); });

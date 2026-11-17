@@ -89,7 +89,7 @@ check('real-world maps load and run 30 s', () => {
 });
 
 check('map sizes give sane player counts', () => {
-  const keys = ['random', ...Object.keys(run(ctx, 'WORLD_MAPS'))], out = [];
+  const keys = ['generated', ...Object.keys(run(ctx, 'WORLD_MAPS'))], out = [];
   for (const k of keys) {
     ctx.k = k;
     const n = run(ctx, 'playersForLand(mapLand(k))'), c = run(ctx, 'sizeClass(mapLand(k))');

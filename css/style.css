@@ -100,6 +100,25 @@ button.ghost:hover { background: var(--btn); }
 #summary { margin: 0; text-align: center; color: var(--dim); font-size: 13px; }
 .card .foot button.primary { margin-top: 2px; }
 
+/* map picker */
+#mapPick { display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px; text-align: left; }
+#mapPick canvas, .mapTile canvas { display: block; width: 96px; height: 56px; border-radius: 4px; border: 1px solid var(--line); }
+#mapPick .info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+#mapPick small { color: var(--dim); font-size: 12px; }
+#mapPick .change { color: var(--dim); font-size: 12px; padding-right: 6px; }
+.card.wide { max-width: 760px; }
+#mapSearch { width: 100%; background: var(--btn); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font: inherit; }
+#regions { display: flex; flex-wrap: wrap; gap: 4px; }
+#regions button { font-size: 13px; padding: 4px 10px; }
+#mapGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 4px 0; }
+.mapTile { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px; }
+.mapTile canvas { width: 100%; height: auto; aspect-ratio: 96 / 56; }
+.mapTile .tname { font-weight: 600; }
+.mapTile .tbadge { font-size: 12px; color: var(--dim); }
+.mapTile.on .tbadge { color: #141414; }
+.mapTile.on canvas { border-color: #141414; }
+#mapGrid .none { grid-column: 1 / -1; margin: 12px 0; text-align: center; color: var(--dim); }
+
 #stats { margin: 4px auto 6px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 #stats td { padding: 2px 10px; }
 #stats td:first-child { color: var(--dim); text-align: left; }
@@ -118,4 +137,5 @@ button.ghost:hover { background: var(--btn); }
   .card { padding: 20px; }
   .card .foot { bottom: -20px; margin: 6px -20px -20px; padding: 8px 20px 16px; }
   .card h1 { font-size: 32px; }
+  #mapGrid { grid-template-columns: repeat(2, 1fr); }
 }
