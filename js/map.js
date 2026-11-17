@@ -167,6 +167,16 @@ const MAP_INFO = [
   { id: 'amazon', name: 'Amazon basin', regions: ['Americas'] },
   { id: 'andes', name: 'Andes', regions: ['Americas'] },
   { id: 'patagonia', name: 'Patagonia', regions: ['Americas'] },
+  { id: 'sahara', name: 'Sahara', regions: ['Africa'] },
+  { id: 'westafrica', name: 'West Africa', regions: ['Africa'] },
+  { id: 'eastafrica', name: 'East Africa', regions: ['Africa'] },
+  { id: 'southernafrica', name: 'Southern Africa', regions: ['Africa'] },
+  { id: 'nile', name: 'Egypt and the Nile', regions: ['Africa', 'Asia'] },
+  { id: 'madagascar', name: 'Madagascar', regions: ['Africa', 'Seas & islands'] },
+  { id: 'india', name: 'India', regions: ['Asia'] },
+  { id: 'china', name: 'China', regions: ['Asia'] },
+  { id: 'indonesia', name: 'Indonesia', regions: ['Asia', 'Oceania', 'Seas & islands'] },
+  { id: 'philippines', name: 'Philippines', regions: ['Asia', 'Oceania', 'Seas & islands'] },
 ];
 const MAP_REGIONS = ['Continents', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Seas & islands'];
 
