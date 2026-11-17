@@ -157,6 +157,16 @@ const MAP_INFO = [
   { id: 'siberia', name: 'Siberia', regions: ['Asia'] },
   { id: 'arctic', name: 'Arctic and Greenland', regions: ['Americas', 'Europe', 'Seas & islands'] },
   { id: 'southasia', name: 'South Asia', regions: ['Asia'] },
+  { id: 'canada', name: 'Canada', regions: ['Americas'] },
+  { id: 'mexico', name: 'Mexico', regions: ['Americas'] },
+  { id: 'centralamerica', name: 'Central America', regions: ['Americas'] },
+  { id: 'gulfofmexico', name: 'Gulf of Mexico', regions: ['Americas', 'Seas & islands'] },
+  { id: 'greatlakes', name: 'Great Lakes', regions: ['Americas'] },
+  { id: 'pacificnw', name: 'Pacific Northwest', regions: ['Americas'] },
+  { id: 'brazil', name: 'Brazil', regions: ['Americas'] },
+  { id: 'amazon', name: 'Amazon basin', regions: ['Americas'] },
+  { id: 'andes', name: 'Andes', regions: ['Americas'] },
+  { id: 'patagonia', name: 'Patagonia', regions: ['Americas'] },
 ];
 const MAP_REGIONS = ['Continents', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Seas & islands'];
 
