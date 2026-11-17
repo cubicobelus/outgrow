@@ -29,7 +29,6 @@ button.on { background: var(--gold); border-color: var(--gold); color: #141414; 
 #clock.low { color: #ff7b6b; }
 .bar { position: relative; height: 7px; background: var(--btn); border-radius: 4px; margin: 4px 0 6px; }
 #fill { height: 100%; background: var(--gold); border-radius: 4px; }
-.bar .mark { position: absolute; left: 40%; top: -3px; bottom: -3px; width: 2px; background: var(--text); opacity: 0.6; }
 #attacks { margin-top: 6px; color: #ffcf8a; font-size: 13px; }
 #attacks .in { color: #ff7b6b; font-weight: 600; }
 #attacks .out { color: #ffd54a; }

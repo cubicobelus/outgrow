@@ -12,7 +12,7 @@
 <div id="hud" class="panel">
   <div class="clock"><span class="label" id="clockLabel">Time left</span><span id="clock"></span></div>
   <div class="row"><span class="label">Troops</span><span id="troops"></span></div>
-  <div class="bar" title="Growth is fastest near the tick"><div id="fill"></div><div class="mark"></div></div>
+  <div class="bar" title="Troops toward your cap"><div id="fill"></div></div>
   <div class="row"><span class="label">Growth</span><span id="growth"></span></div>
   <div class="row"><span class="label">Land</span><span id="land"></span></div>
   <div class="row" title="Your troops spread over your land: what each tile costs an attacker"><span class="label">Troops per tile</span><span id="density"></span></div>
@@ -80,7 +80,7 @@
     <h2>How to play</h2>
     <ul>
       <li><b>Start:</b> in the first few seconds, click open land to place your start. Click again to move it. Starts cannot sit right next to each other.</li>
-      <li><b>Troops</b> grow on their own up to your <b>cap</b>, and more land means a higher cap. Growth is fastest around the tick on the troop bar and stops when you are full.</li>
+      <li><b>Troops</b> grow on their own up to your <b>cap</b>, and more land means a higher cap. Growth is fastest when you are well below your cap (around 40% of it) and stops when you are full.</li>
       <li><b>Attack:</b> click open land or a neighbour to send the chosen share of your troops (keys <b>1</b> to <b>5</b>). The attack spreads along your border until its troops run out, and its troops show on the map. You can run up to <b>4 attacks (fronts)</b> at once, and so can the bots. Click land across the water to send a boat.</li>
       <li>Plains and desert are cheapest and fastest; forest and tundra, then hills, then mountains cost more, slow attacks down and help defenders. Open land next to a rival costs extra. Taking someone's land costs more the more troops they hold, so attacking first usually loses troops. Expand fast, do not send too much early, and strike when you clearly outnumber a neighbour.</li>
       <li><b>Fresh ground is weak</b>: land just taken shows pale and defends with only part of its owner's strength, filling in over 20 seconds, so a counterattack right after a push is cheap.</li>
