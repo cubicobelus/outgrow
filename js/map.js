@@ -132,6 +132,7 @@ function loadWorldMap(key) {
 // maps in worldmaps.js. Regions drive the picker's filter chips.
 const MAP_INFO = [
   { id: 'generated', name: 'Generated', regions: ['Continents'], note: 'new terrain every match' },
+  { id: 'random', name: 'Random', regions: ['Continents'], note: 'a real map, picked when you press Play' },
   { id: 'world', name: 'World', regions: ['Continents'] },
   { id: 'europe', name: 'Europe', regions: ['Europe'] },
   { id: 'northamerica', name: 'North America', regions: ['Continents', 'Americas'] },
@@ -191,8 +192,17 @@ const GENERATED_LAND = 17850; // typical land tiles of a generated 220x140 map (
 const playersForLand = land => Math.max(MIN_PLAYERS, Math.min(MAX_PLAYERS, Math.round(land / TILES_PER_PLAYER)));
 const sizeClass = land => land < 16000 ? 'Small' : land < 24000 ? 'Medium' : land < 32000 ? 'Large' : 'Huge';
 const landCache = {};
+// The real maps only: not the generated map, nor the Random card (which stands for one of them).
+const realMapIds = () => MAP_INFO.map(m => m.id).filter(id => id !== 'generated' && id !== 'random');
 function mapLand(key) {
   if (key === 'generated') return GENERATED_LAND;
+  if (key === 'random') { // a middling size, so the card suggests a middling player count
+    if (landCache.random === undefined) {
+      const lands = realMapIds().map(mapLand).sort((a, b) => a - b), h = lands.length >> 1;
+      landCache.random = lands.length % 2 ? lands[h] : (lands[h - 1] + lands[h]) / 2;
+    }
+    return landCache.random;
+  }
   if (landCache[key] === undefined) landCache[key] = loadWorldMap(key).terrain.reduce((n, t) => n + (t !== WATER), 0);
   return landCache[key];
 }

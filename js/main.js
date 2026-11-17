@@ -22,11 +22,11 @@ let msgTimer = 0, ended = false, watching = false, howFrom = 'menu';
 let warned = new Set(); // attacks and boats on the human already announced
 
 // The default mix is drawn from the match seed, so ?seed= replays the same opponents.
-function lineupFromSetup(rand) {
-  if (setup.mode === 'one') return Array(setup.count).fill(setup.one);
+function lineupFromSetup(rand, count = setup.count) {
+  if (setup.mode === 'one') return Array(count).fill(setup.one);
   if (setup.mode === 'custom') return LEVELS.flatMap(([key]) => Array(setup[key]).fill(key));
   const total = MIX.reduce((a, b) => a + b);
-  const picks = Array.from({ length: setup.count }, () => {
+  const picks = Array.from({ length: count }, () => {
     let r = rand() * total, k = 0;
     while (r >= MIX[k]) r -= MIX[k++];
     return k;
@@ -41,15 +41,25 @@ const botCount = () => (setup.mode === 'custom' ? LEVELS.reduce((s, [k]) => s + 
 function load(lineup, human) {
   const fixed = human && new URLSearchParams(location.search).get('seed');
   const seed = fixed ? +fixed : Math.floor(Math.random() * 1e9);
-  const map = setup.map === 'generated' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(setup.map);
-  if (typeof lineup === 'function') lineup = lineup(mulberry32(seed ^ 0x2545f491));
+  // Random picks a real map from its own stream of the match seed, so ?seed= replays the same map
+  // (a separate stream keeps the bot lineup the same as it would be without the pick).
+  let id = setup.map, bots = setup.count;
+  if (id === 'random') {
+    const ids = realMapIds();
+    id = ids[Math.floor(mulberry32(seed ^ 0x51ed270b)() * ids.length)];
+    // The map's own default size, unless the player has set a count of their own.
+    if (setup.count === defaultBots('random')) bots = defaultBots(id);
+  }
+  const map = id === 'generated' ? generateMap(MAP_W, MAP_H, seed) : loadWorldMap(id);
+  if (typeof lineup === 'function') lineup = lineup(mulberry32(seed ^ 0x2545f491), bots);
   game = new Game(map, seed, lineup);
   if (!human) game.human.alive = false;
   game.human.peak = 0;
   renderer = new Renderer(canvas, game);
   renderer.resize();
   ended = false; watching = false; paused = false; acc = 0; warned = new Set();
-  showMsg('', 0);
+  if (setup.map === 'random' && human) showMsg(`Random map: ${MAP_INFO.find(m => m.id === id).name}`, 4);
+  else showMsg('', 0);
 }
 
 // The menu sits over a bot-only match running in the background.
@@ -119,6 +129,13 @@ function thumbMapData(id) {
 function drawThumb(canvas, id) {
   canvas.width = THUMB_W; canvas.height = THUMB_H;
   const g = canvas.getContext('2d');
+  if (id === 'random') { // not a map: a question mark on open water
+    const [r, gr, b] = TERRAIN[WATER].color;
+    g.fillStyle = `rgb(${r},${gr},${b})`; g.fillRect(0, 0, THUMB_W, THUMB_H);
+    g.fillStyle = 'rgba(255,255,255,0.85)'; g.font = 'bold 40px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('?', THUMB_W / 2, THUMB_H / 2 + 2);
+    return;
+  }
   if (!thumbCache[id]) {
     const map = thumbMapData(id), img = g.createImageData(THUMB_W, THUMB_H);
     const s = Math.min(THUMB_W / map.w, THUMB_H / map.h);
@@ -134,7 +151,7 @@ function drawThumb(canvas, id) {
   g.putImageData(thumbCache[id], 0, 0);
 }
 
-const mapBadge = id => `${sizeClass(mapLand(id))} \u00b7 ${playersForLand(mapLand(id))} players`;
+const mapBadge = id => id === 'random' ? 'a real map, picked at Play' : `${sizeClass(mapLand(id))} \u00b7 ${playersForLand(mapLand(id))} players`;
 
 function renderPicker() {
   const regions = ['All', ...MAP_REGIONS.filter(r => MAP_INFO.some(m => m.regions.includes(r)))];
@@ -176,9 +193,9 @@ function renderSetup() {
   drawThumb(el('mapPickThumb'), setup.map);
   el('mapPickName').textContent = info.name;
   el('mapPickBadge').textContent = mapBadge(setup.map);
-  const mapName = setup.map === 'generated' ? 'Generated map' : info.name;
+  const mapName = setup.map === 'generated' ? 'Generated map' : setup.map === 'random' ? 'Random real map' : info.name;
   const who = setup.mode === 'mix' ? 'default mix' : setup.mode === 'one' ? `all ${setup.one}` : 'custom';
-  el('summary').textContent = `${mapName} (${sizeClass(mapLand(setup.map))}), ${total + 1} players, ${who}`;
+  el('summary').textContent = `${mapName}${setup.map === 'random' ? '' : ` (${sizeClass(mapLand(setup.map))})`}, ${total + 1} players, ${who}`;
 }
 
 // ---- input ----
