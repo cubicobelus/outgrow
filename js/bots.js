@@ -313,15 +313,18 @@ function patientThink(game, p, E) {
       const o = choose(near).find(o => (o.wipes || o.q.tiles >= 0.8 * top) && o.score / o.send >= E.attackBias * openValue);
       if (o && strike(o)) return;
     }
-    const send = spare(Math.min(p.troops * E.openShare * L.share, p.troops - guard));
+    // The guard can swallow every troop when a neighbour has a bigger army; a small send still
+    // clears the last open pockets, so the bot does not sit forever beside a few open tiles.
+    const send = spare(Math.min(p.troops * E.openShare * L.share, Math.max(p.troops - guard, openCost * 30)));
     if (!busy(NEUTRAL) && ready && send > openCost * 5 && game.launchAttack(p, NEUTRAL, send)) return;
   }
   if (game.frontCount(p.id) >= E.fronts) return;
-  // With land around, only expansion and the strategic strikes above are worth the troops.
-  if (openTouch) return;
-  if (ready && game.neutralLeft() > 0 && tryBoat(game, p, E.openShare * L.share, 0)) return;
-
   const full = p.troops >= E.capAt * cap;
+  // With land around, only expansion and the strategic strikes above are worth the troops,
+  // unless growth has stalled at the cap.
+  if (openTouch && !full) return;
+  if (!openTouch && ready && game.neutralLeft() > 0 && tryBoat(game, p, E.openShare * L.share, 0)) return;
+
   let land = choose(near, full);
   // The sharpest bots weigh sea targets against land ones instead of only when land runs out.
   if (E.exact && game.time >= (p.nextSea || 0)) {
