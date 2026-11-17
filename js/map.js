@@ -137,6 +137,16 @@ const MAP_INFO = [
   { id: 'northamerica', name: 'North America', regions: ['Continents', 'Americas'] },
   { id: 'mediterranean', name: 'Mediterranean', regions: ['Europe', 'Africa', 'Seas & islands'] },
   { id: 'eastasia', name: 'East Asia', regions: ['Asia'] },
+  { id: 'africa', name: 'Africa', regions: ['Continents', 'Africa'] },
+  { id: 'southamerica', name: 'South America', regions: ['Continents', 'Americas'] },
+  { id: 'asia', name: 'Asia', regions: ['Continents', 'Asia'] },
+  { id: 'oceania', name: 'Australia and the Pacific', regions: ['Continents', 'Oceania'] },
+  { id: 'seasia', name: 'Southeast Asia', regions: ['Asia', 'Oceania', 'Seas & islands'] },
+  { id: 'caribbean', name: 'Caribbean', regions: ['Americas', 'Seas & islands'] },
+  { id: 'middleeast', name: 'Middle East', regions: ['Asia', 'Africa'] },
+  { id: 'britishisles', name: 'British Isles', regions: ['Europe', 'Seas & islands'] },
+  { id: 'japan', name: 'Japan', regions: ['Asia', 'Seas & islands'] },
+  { id: 'usa', name: 'United States', regions: ['Americas'] },
 ];
 const MAP_REGIONS = ['Continents', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Seas & islands'];
 
