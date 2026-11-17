@@ -177,6 +177,11 @@ const MAP_INFO = [
   { id: 'china', name: 'China', regions: ['Asia'] },
   { id: 'indonesia', name: 'Indonesia', regions: ['Asia', 'Oceania', 'Seas & islands'] },
   { id: 'philippines', name: 'Philippines', regions: ['Asia', 'Oceania', 'Seas & islands'] },
+  { id: 'hawaii', name: 'Hawaii', regions: ['Oceania', 'Seas & islands'] },
+  { id: 'aegean', name: 'Aegean', regions: ['Europe', 'Seas & islands'] },
+  { id: 'newzealand', name: 'New Zealand', regions: ['Oceania', 'Seas & islands'] },
+  { id: 'gulfs', name: 'Persian Gulf and Red Sea', regions: ['Asia', 'Africa', 'Seas & islands'] },
+  { id: 'norwegiansea', name: 'Iceland and the Norwegian Sea', regions: ['Europe', 'Seas & islands'] },
 ];
 const MAP_REGIONS = ['Continents', 'Americas', 'Europe', 'Asia', 'Africa', 'Oceania', 'Seas & islands'];
 
