@@ -114,7 +114,9 @@ check('europe full lineup of 19 bots spawns and runs 30 s', () => {
   run(ctx, 'playStart(g); steps(g, 30)');
   const bots = ctx.g.players.filter(p => p.isBot);
   assert(bots.length === 19, bots.length + ' bots');
-  assert(bots.every(p => p.spawned && p.tiles > 0), 'a bot did not spawn or own land');
+  // A bot may already be wiped out by 30 s (an Expert can take a weak neighbour that fast); every bot must have spawned.
+  assert(bots.every(p => p.spawned && (p.tiles > 0 || !p.alive)), 'a bot did not spawn or own land');
+  assert(bots.filter(p => p.alive).length >= 15, 'too many bots gone by 30 s');
   const bad = run(ctx, 'sane(g)'); assert(!bad, bad);
   return '19 bots, land ' + run(ctx, 'owned(g)');
 });

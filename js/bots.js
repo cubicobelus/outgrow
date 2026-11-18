@@ -50,8 +50,9 @@
 //   crowd:       each boat already heading for a target scales its appeal by this (lower = avoids crowds)
 //   noise:       how far estimates are off: each option's score is scaled by 1 plus or minus this (0 = perfect)
 //   reach:       look for players this many open tiles away (not touching yet) and thrust at ones worth hitting; 0 = only neighbours
+//   crowdK:      with several neighbours, this share of every army but the biggest also counts as a threat in the safety check (0 = only the biggest)
 //   luckTop:     battle luck: while one of our attacks has a lucky round (tiles at most 0.8 of their price), add this share of our troops to it (0 = never)
-const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.45, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true, reach: 10, exact: true, noise: 0, crowd: 0.5, rival: 0.8, cleanup: 0.04, attackBias: 0.5, fronts: 4, grudge: 0.1, capAt: 0.88, reserve: 0.3, patience: 2, chipFrom: 0.5, minX: 0.3, horizon: 25, netMin: 0.5, luckTop: 0.15 };
+const EXPERT = { think: 0.15, openTrigger: 0.38, openShare: 0.35, openGuard: 0.5, safety: 0.65, minGain: 30, snipe: 1.5, lean: 0.05, delay: [0, 0.6], chip: true, reach: 10, exact: true, noise: 0, crowd: 0.5, rival: 0.8, cleanup: 0.04, attackBias: 0.5, fronts: 4, grudge: 0.1, capAt: 0.88, reserve: 0.3, patience: 2, chipFrom: 0.5, minX: 0.3, horizon: 25, netMin: 0.5, luckTop: 0.15, crowdK: 0.25 };
 const HARD =   { think: 1, openTrigger: 0.52, openShare: 0.25, openGuard: 0.35, safety: 0.7, minGain: 10, snipe: 1, lean: 0.2, delay: [0, 3], chip: false, reach: 0, exact: false, noise: 0.5, crowd: 0.7, rival: 0, cleanup: 0.02, attackBias: 0, fronts: 3, grudge: 0.6, capAt: 0.88, reserve: 0.35, patience: 0, chipFrom: 0, minX: 0, horizon: 0, netMin: 0.5, luckTop: 0 };
 
 const BOT_TYPES = {
@@ -147,12 +148,15 @@ function frontCost(game, p, q) {
 // and how safe p is afterwards: its remaining troops over the biggest army any neighbour has
 // left. A neighbour can only take land in proportion to its own troops over ours, so whole
 // armies are what matter, not troops per tile.
-function plan(game, p, q, share, near, tile) {
+function plan(game, p, q, share, near, tile, crowdK = 0) {
   // Never more than it takes to wipe q out (with a margin), so finishing off a small player is cheap.
   const cost = tile || estCost(game, p, q), need = (tile ? tile * q.tiles : wipeCost(game, p, q)) * 1.2, send = Math.min(p.troops * share, need);
   const gain = send >= need ? q.tiles : Math.min(q.tiles, send / cost);
   let threat = Math.max(0, q.troops - gain * density(q));
-  for (const r of near) if (r !== q) threat = Math.max(threat, r.troops);
+  let others = 0;
+  for (const r of near) if (r !== q) { threat = Math.max(threat, r.troops); others += r.troops; }
+  // Many neighbours can strike at once: part of every other army counts too.
+  if (crowdK) threat += crowdK * (others - Math.max(0, ...near.filter(r => r !== q).map(r => r.troops)));
   return { send, gain, cost, wipes: gain >= q.tiles, safe: threat > 0 ? (p.troops - send) / threat : Infinity };
 }
 
@@ -277,7 +281,7 @@ function patientThink(game, p, E) {
       // A chip (15%, Expert only): an army at its cap regrows a slice at full speed, so a small
       // safe attack is nearly free even when a big one would leave the bot exposed.
       for (const share of E.chip || relaxed ? [0.08, 0.15, 0.3, 0.5, 0.7] : [0.3, 0.5, 0.7]) {
-        const pl = plan(game, p, q, share, near.includes(q) ? near : [...near, q], tile);
+        const pl = plan(game, p, q, share, near.includes(q) ? near : [...near, q], tile, E.crowdK);
         const small = q.tiles <= E.cleanup * game.landTiles;
         if (!relaxed && !pl.wipes && !small && (x < E.minX || (share < 0.3 && x < E.chipFrom))) continue;
         if (!relaxed && !pl.wipes && !small && lostGrowth(pl.send) / (tile || estCost(game, p, q)) > pl.gain * E.netMin) continue;
